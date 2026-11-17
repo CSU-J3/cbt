@@ -118,7 +118,8 @@
 // A control that isn't on the screen is a miss, never a skip. One log line a
 // cell: P2's start, P3's two tops and hits, P4's drawer box, P5's position.
 //
-// WHAT ITS ZERO MEANS (method.md § Gates). On the nine `TOUCH_ROUTES` at two
+// WHAT ITS ZERO MEANS (method.md § Gates). On the ten `TOUCH_ROUTES` (`home`
+// since HO 821) at two
 // viewports, under Chromium's touch emulation, no visible text-entry control
 // computes under 16px and no page scrolls sideways. IT SAYS NOTHING ABOUT iOS
 // SAFARI'S ZOOM ITSELF: 16px is the size below which Safari zooms the page when
@@ -231,8 +232,9 @@
 //
 // NO SCREENSHOTS AND NO COLLECTORS, as in the narrow spec: one log line a
 // cell, and one navigation a cell but for the fold's touch cells, which reload
-// once (15 documents a run for the nine, 9 for the nine zone cells, and 12 for
-// the six pin cells, which load and reload).
+// once (15 documents a run for the nine, 9 for the nine zone cells, 12 for
+// the six pin cells, which load and reload, and 6 for HO 821's four search
+// cells, of which Q2 and Q3 reload).
 // Untagged, so `e2e-prod` runs it on every trigger.
 import { expect, test } from "@playwright/test";
 import { FOLD_ROUTES, TEXT_ENTRY_SELECTOR, TOUCH_ROUTES } from "./routes";
@@ -294,7 +296,7 @@ const FOLDED_MAX = 46;
 const PHONE_MAX = 700;
 // HO 818 — a nav icon is a text glyph: no code point a platform may draw as a
 // colour emoji. U+FE0F asks for the emoji form of the code point before it.
-const EMOJI = /\p{Extended_Pictographic}|️/u;
+const EMOJI = /\p{Extended_Pictographic}|\u{FE0F}/u;
 
 // HO 818 — THE ZONE CELLS. `T0` is a whole minute, so the sync time's slot 0 (ET)
 // starts on it (`lib/zone-cycle.ts`: the slot is `floor(now / 4000) % 5`, and a
@@ -383,6 +385,25 @@ function cells(tag: string, width: number) {
       // `networkidle` never fires and a fixed settle is the pragmatic choice.
       await page.waitForLoadState("load").catch(() => {});
       await page.waitForTimeout(2_500);
+
+      // HO 821: on a phone the dashboard's search bar sits behind the ⌕ beside
+      // HIDE (ruled C), so the cell opens it first, the way a reader would, and
+      // reading 3 then reads the bar's input. Wider than a phone the bar is in
+      // the page already. No ⌕ (the base) leaves the bar shut and reading 3 red.
+      let opened: string | null = null;
+      if (route.slug === "home" && width <= PHONE_MAX) {
+        const find = await page.evaluate(() => {
+          const el = document.querySelector(".home-header > .mh-find");
+          if (!el || !(el as HTMLElement).checkVisibility()) return null;
+          const r = el.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        });
+        if (find) {
+          await page.touchscreen.tap(find.x, find.y);
+          await page.waitForTimeout(400);
+          opened = "find";
+        } else opened = "no-find";
+      }
 
       // ONE READ, TAKEN BEFORE ANY ASSERTION, so a red cell still logs every
       // number: claim 9's red on prod was read off these lines.
@@ -618,6 +639,7 @@ function cells(tag: string, width: number) {
       console.log(
         `[touch ${tag} ${route.slug}] coarse=${read.coarse} inner=${read.inner}` +
           ` controls=${controls.length} min=${min === null ? "none" : `${min}px`}` +
+          (opened ? ` opened=${opened}` : "") +
           ` scroll=${read.s}/${read.c} over=${over} theme=${theme ?? "none"}` +
           ` faces=${probe.faces} targets=${probe.targets} miss=${probe.targetMisses.length}` +
           ` bar=${probe.bars.length ? probe.bars.join(" + ") : "none"}` +
@@ -1680,6 +1702,402 @@ test.describe("pin @851", () => {
   });
   pinCells("851", 851);
 });
+
+// HO 821 — THE SEARCH CELLS (Q1 to Q4), on `/` only, after the pin cells. The
+// dashboard's search bar is in the page wider than a phone (ruled A) and behind a
+// ⌕ on a phone (ruled C): beside HIDE on the open masthead, under HIDE below
+// 390 (HO 821's review), and in the folded strip, where it opens a row pinned
+// under the strip. Each cell reads, taps and types before it asserts, so a red
+// cell still logs every number. Q4 is the one cell at 360 × 780, the narrowest
+// phone width in common use; 375 and 389 were read by hand (HO 821's Leg H).
+//
+// WHAT ITS ZERO MEANS: on a phone the bar isn't there until the ⌕ is tapped, the
+// ⌕ sits beside HIDE clear of the title (under it at 360), and a tap opens the
+// bar focused, in the page with the masthead open and pinned under the strip
+// folded, where it stays at depth and holds the card, under the strip's ☰
+// drawer; wider than a phone the bar is in the page. It says NOTHING about a
+// real keyboard rising, the page zooming on a real phone, or speed on a phone's
+// network: that's the backlog line's close.
+//
+// THE CONTROL: claim 11, on prod at 601f90e, 2026-11-16 7:26 PM MST, read red:
+// no `.mh-find` in the open masthead at 390 (Q1) or in the folded strip (Q2 at
+// 390, Q3 at 851), no `.ds` in the page at 851 (Q3), and the two `home` touch
+// cells found 0 visible text-entry controls at 390 and 851. Q2's drawer read
+// and Q4 came with the review, after the build, so their control is a local
+// build of 47f3f39, the build they fix (2026-11-16, 11:09 PM MST). Q2: the
+// hit at the drawer's first link ("⌂Dashboard") landed on the pinned row's
+// `input` (in `.ds`), not the link. Q4: the ⌕ sat beside HIDE (left 284 to
+// HIDE's 320, top 20), over the title's ":\" by 22 × 18. Q1 and Q3 were green.
+const FIND_TALL = 28;
+const FIND_GAP = 8;
+
+type QBox = { l: number; t: number; r: number; b: number; w: number; h: number };
+
+function searchCells() {
+  const load = async (page: import("@playwright/test").Page, folded: boolean) => {
+    const response = await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    if (folded) {
+      await page.evaluate((key) => {
+        try {
+          localStorage.setItem(key, "folded");
+        } catch {
+          /* the read below reports the attribute missing */
+        }
+      }, FOLD_KEY);
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
+    }
+    await page.waitForLoadState("load").catch(() => {});
+    await page.waitForTimeout(2_500);
+    await page.evaluate(() => {
+      for (const el of Array.from(document.querySelectorAll("*")))
+        if (el.tagName.startsWith("VERCEL-")) (el as HTMLElement).style.setProperty("display", "none", "important");
+    });
+    return response;
+  };
+  // One read of the search pieces, in viewport coordinates.
+  const readSearch = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => {
+      const visible = (el: Element | null | undefined): el is HTMLElement => {
+        if (!el || !(el as HTMLElement).checkVisibility({ visibilityProperty: true })) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      };
+      const box = (el: Element | null | undefined) => {
+        if (!el || !visible(el)) return null;
+        const r = el.getBoundingClientRect();
+        return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
+      };
+      const header = document.querySelector(".dash-left > .home-header");
+      const ds = document.querySelector(".ds");
+      const input = ds?.querySelector('input[type="search"]') ?? null;
+      const form = ds?.querySelector("form") ?? null;
+      const card = document.querySelector(".ds-card");
+      return {
+        attr: document.documentElement.getAttribute("data-masthead"),
+        searchAttr: document.documentElement.getAttribute("data-search"),
+        coarse: matchMedia("(pointer: coarse)").matches,
+        inner: window.innerWidth,
+        innerH: window.innerHeight,
+        header: box(header),
+        hide: box(header?.querySelector(":scope > .mh-hide")),
+        openFind: box(header?.querySelector(":scope > .mh-find")),
+        stripFind: box(header?.querySelector(".mh-strip .mh-find")),
+        strip: box(header?.querySelector(".mh-strip")),
+        ds: box(ds),
+        dsPos: ds ? getComputedStyle(ds).position : null,
+        dsScrolls: ds ? ds.scrollHeight > ds.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(ds).overflowY) : false,
+        form: box(form),
+        input: box(input),
+        focused: !!input && input === document.activeElement,
+        card: box(card),
+        cardInDs: !!card && !!ds && ds.contains(card),
+        options: document.querySelectorAll('.ds-drop [role="option"]').length,
+      };
+    });
+  // F2's text-line read, against a box: no visible text line in the masthead
+  // overlaps it by more than 1px each way.
+  const overlaps = (page: import("@playwright/test").Page, sel: string) =>
+    page.evaluate((sel) => {
+      const header = document.querySelector(".dash-left > .home-header");
+      const btn = header?.querySelector(sel) as HTMLElement | null;
+      if (!header || !btn) return ["no button"];
+      const h = btn.getBoundingClientRect();
+      const out: string[] = [];
+      const walker = document.createTreeWalker(header, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const p = n.parentElement;
+        if (!p || !(n.textContent ?? "").trim() || btn.contains(p) || !p.checkVisibility({ visibilityProperty: true })) continue;
+        range.selectNodeContents(n);
+        for (const r of Array.from(range.getClientRects())) {
+          if (r.width === 0 || r.height === 0) continue;
+          const ox = Math.min(r.right, h.right) - Math.max(r.left, h.left);
+          const oy = Math.min(r.bottom, h.bottom) - Math.max(r.top, h.top);
+          if (ox > 1 && oy > 1) out.push(`"${(n.textContent ?? "").trim().slice(0, 24)}" ${Math.round(ox)}x${Math.round(oy)}`);
+        }
+      }
+      return out;
+    }, sel);
+  const tapBox = async (page: import("@playwright/test").Page, b: QBox | null) => {
+    if (!b) return false;
+    await page.touchscreen.tap(b.l + b.w / 2, b.t + b.h / 2);
+    await page.waitForTimeout(400);
+    return true;
+  };
+  const typeAndPick = async (page: import("@playwright/test").Page) => {
+    await page.keyboard.type("tax", { delay: 60 });
+    await page.locator('.ds-drop [role="option"]').first().waitFor({ state: "visible", timeout: 5_000 }).catch(() => {});
+    const opt = await page.evaluate(() => {
+      const el = document.querySelector('.ds-drop [role="option"]');
+      if (!el) return null;
+      el.scrollIntoView({ block: "nearest" });
+      const r = el.getBoundingClientRect();
+      return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
+    });
+    const tapped = await tapBox(page, opt);
+    await page.locator(".ds-card").first().waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
+    return tapped;
+  };
+  // The strip's ☰, tapped, then the hit at the drawer's first link's centre;
+  // a second tap shuts the drawer again.
+  const drawerHit = async (page: import("@playwright/test").Page) => {
+    const problems: string[] = [];
+    const toggle = await page.evaluate(() => {
+      const t = document.querySelector(".dash-left > .home-header .mh-strip .mobile-nav-toggle");
+      if (!t || !(t as HTMLElement).checkVisibility({ visibilityProperty: true })) return null;
+      const r = t.getBoundingClientRect();
+      return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
+    });
+    if (!toggle) return { drawer: false, first: "none", hit: "none", onLink: false, closed: null, problems: ["no visible ☰ in the strip with the row open"] };
+    await tapBox(page, toggle);
+    const read = await page.evaluate(() => {
+      const d = document.querySelector(".dash-left > .home-header .mh-strip .mobile-nav-drawer");
+      if (!d || !(d as HTMLElement).checkVisibility({ visibilityProperty: true })) return null;
+      const a = d.querySelector("a");
+      if (!a) return { first: "none", hit: "none", onLink: false };
+      const r = a.getBoundingClientRect();
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      const name = (e: Element | null) => {
+        if (!e) return "none";
+        const cls = typeof e.className === "string" ? e.className.trim().split(/\s+/).filter(Boolean).slice(0, 2) : [];
+        const inDs = e.closest(".ds") ? " (in .ds)" : "";
+        return `${e.tagName.toLowerCase()}${cls.map((c) => `.${c}`).join("")}${inDs}`;
+      };
+      return { first: (a.textContent ?? "").trim().slice(0, 24), hit: name(el), onLink: !!el && a.contains(el) };
+    });
+    if (!read) problems.push("a tap on the strip's ☰ showed no .mobile-nav-drawer");
+    else if (!read.onLink) problems.push(`the hit at the drawer's first link ("${read.first}") landed on ${read.hit}, not the link`);
+    await tapBox(page, toggle);
+    const closed = await page.evaluate(() => {
+      const d = document.querySelector(".dash-left > .home-header .mh-strip .mobile-nav-drawer");
+      return !d || !(d as HTMLElement).checkVisibility({ visibilityProperty: true });
+    });
+    if (!closed) problems.push("a second tap on the ☰ left the drawer open");
+    return { drawer: !!read, first: read?.first ?? "none", hit: read?.hit ?? "none", onLink: read?.onLink ?? false, closed, problems };
+  };
+  const r1 = (n: number | null | undefined) => (n === null || n === undefined ? "none" : `${Math.round(n * 10) / 10}`);
+
+  test.describe("search @390", () => {
+    test.use({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 3,
+      hasTouch: true,
+      isMobile: true,
+      contextOptions: { reducedMotion: "reduce" },
+      storageState: { cookies: [], origins: [] },
+    });
+
+    // Q1. THE MASTHEAD OPEN: no bar until asked for; the ⌕ sits beside HIDE,
+    // clear of the title; a tap opens the bar under the masthead with the input
+    // focused; a pick opens under the bar.
+    test("home (/) search, open @390", async ({ page, context }) => {
+      await context.addCookies([GATE_COOKIE]);
+      const response = await load(page, false);
+      const before = await readSearch(page);
+      const lines = await overlaps(page, ":scope > .mh-find");
+      const q1: string[] = [];
+      if (before.ds) q1.push("the bar (.ds) is visible before the ⌕ is tapped");
+      if (!before.openFind) q1.push("no visible .mh-find in the open masthead");
+      else {
+        if (Math.abs(before.openFind.h - FIND_TALL) > 1) q1.push(`the ⌕ is ${r1(before.openFind.h)}px tall`);
+        if (!before.hide) q1.push("no visible HIDE to set the ⌕ against");
+        else {
+          if (Math.abs(before.openFind.t - before.hide.t) > 1) q1.push(`the ⌕'s top ${r1(before.openFind.t)}, HIDE's ${r1(before.hide.t)}`);
+          if (Math.abs(before.hide.l - before.openFind.r - FIND_GAP) > 1)
+            q1.push(`the ⌕'s right edge ${r1(before.hide.l - before.openFind.r)}px left of HIDE's left, not ${FIND_GAP}`);
+        }
+        q1.push(...lines.map((l) => `a text line overlaps the ⌕: ${l}`));
+      }
+      const tapped = await tapBox(page, before.openFind);
+      const opened = await readSearch(page);
+      if (tapped) {
+        if (!opened.input) q1.push("after the tap no visible .ds input");
+        else {
+          if (opened.header && opened.input.t < opened.header.b - 1) q1.push(`the bar's input top ${r1(opened.input.t)} is above the masthead's bottom ${r1(opened.header.b)}`);
+          if (!opened.focused) q1.push("the input isn't document.activeElement after the tap");
+        }
+      }
+      const picked = tapped && opened.input ? await typeAndPick(page) : false;
+      const after = await readSearch(page);
+      if (tapped && opened.input && !picked) q1.push("typing tax listed no option within 5 s, so nothing was picked");
+      if (picked) {
+        if (!after.card) q1.push("no visible .ds-card after a pick");
+        else if (after.form && after.card.t < after.form.b - 1) q1.push(`the card's top ${r1(after.card.t)} is above the bar's bottom ${r1(after.form.b)}`);
+      }
+      // eslint-disable-next-line no-console
+      console.log(
+        `[search 390 open] coarse=${before.coarse} inner=${before.inner} bar-before=${before.ds ? "visible" : "hidden"}` +
+          ` find=${before.openFind ? `${r1(before.openFind.w)}x${r1(before.openFind.h)}@${r1(before.openFind.l)},${r1(before.openFind.t)}` : "none"}` +
+          ` hide=${before.hide ? `${r1(before.hide.l)},${r1(before.hide.t)}` : "none"} input=${opened.input ? r1(opened.input.t) : "none"} focused=${opened.focused}` +
+          ` options=${after.options} card=${after.card ? `${r1(after.card.t)}` : "none"} form-bottom=${after.form ? r1(after.form.b) : "none"}` +
+          (q1.length ? `\n    Q1: ${q1.join("\n        ")}` : ""),
+      );
+      const status = response?.status() ?? 0;
+      expect(status, `/ answered ${status}`).toBeGreaterThanOrEqual(200);
+      expect(status, `/ answered ${status}`).toBeLessThan(300);
+      expect(before.coarse, "matchMedia('(pointer: coarse)')").toBe(true);
+      expect.soft(q1, "/ @390, masthead open: the ⌕ beside HIDE opens the bar, and a pick opens under it").toEqual([]);
+    });
+
+    // Q2. FOLDED: the strip's ⌕ opens a row pinned under the strip, which stays
+    // there at depth; a pick opens inside it; a second tap shuts it.
+    test("home (/) search, folded @390", async ({ page, context }) => {
+      await context.addCookies([GATE_COOKIE]);
+      const response = await load(page, true);
+      const before = await readSearch(page);
+      const q2: string[] = [];
+      if (before.attr !== "folded") q2.push(`html data-masthead is ${JSON.stringify(before.attr)}`);
+      if (!before.stripFind) q2.push("no visible .mh-find in the strip");
+      const tapped = await tapBox(page, before.stripFind);
+      const opened = await readSearch(page);
+      if (tapped) {
+        if (opened.dsPos !== "fixed") q2.push(`.ds computes position ${opened.dsPos}, not fixed`);
+        if (!opened.ds || !opened.header) q2.push("no visible .ds or masthead after the tap");
+        else if (Math.abs(opened.ds.t - opened.header.b) > 1) q2.push(`.ds's top ${r1(opened.ds.t)}, the strip's foot ${r1(opened.header.b)}`);
+        if (!opened.focused) q2.push("the input isn't document.activeElement after the tap");
+      }
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await page.waitForTimeout(400);
+      const deep = await readSearch(page);
+      if (tapped && opened.ds && (!deep.ds || Math.abs(deep.ds.t - opened.ds.t) > 1))
+        q2.push(`at the bottom .ds's top is ${r1(deep.ds?.t)}, where it was ${r1(opened.ds.t)}`);
+      const picked = tapped && opened.input ? await typeAndPick(page) : false;
+      const after = await readSearch(page);
+      if (tapped && opened.input && !picked) q2.push("typing tax listed no option within 5 s, so nothing was picked");
+      if (picked) {
+        if (!after.cardInDs) q2.push("the .ds-card isn't inside .ds");
+        if (after.ds && after.ds.b > after.innerH + 1 && !after.dsScrolls)
+          q2.push(`.ds's bottom ${r1(after.ds.b)} is past the screen's ${after.innerH} and it doesn't scroll`);
+      }
+      // The ☰ over the pinned row (HO 821's review): with the row open and a card
+      // drawn, a tap on the strip's ☰ shows the drawer, and the hit at its first
+      // link's centre lands on that link. A second tap shuts the drawer.
+      const menu = tapped && after.card ? await drawerHit(page) : null;
+      if (tapped && !after.card) q2.push("no card drawn, so the ☰ read didn't run");
+      if (menu) q2.push(...menu.problems);
+      const again = after.stripFind ? await tapBox(page, after.stripFind) : false;
+      const shut = await readSearch(page);
+      if (again && shut.ds) q2.push("a second tap on the strip's ⌕ left .ds visible");
+      // eslint-disable-next-line no-console
+      console.log(
+        `[search 390 folded] attr=${before.attr ?? "none"} find=${before.stripFind ? "visible" : "none"} pos=${opened.dsPos ?? "none"}` +
+          ` ds-top=${r1(opened.ds?.t)} strip-foot=${r1(opened.header?.b)} deep-top=${r1(deep.ds?.t)} focused=${opened.focused}` +
+          ` options=${after.options} card-in-ds=${after.cardInDs} ds-bottom=${r1(after.ds?.b)}/${after.innerH} scrolls=${after.dsScrolls}` +
+          ` menu=${menu ? `${menu.drawer ? "shown" : "none"} first="${menu.first}" hit=${menu.hit} on-link=${menu.onLink} closed=${menu.closed}` : "unread"}` +
+          ` shut=${shut.ds ? "no" : "yes"}` +
+          (q2.length ? `\n    Q2: ${q2.join("\n        ")}` : ""),
+      );
+      const status = response?.status() ?? 0;
+      expect(status, `/ answered ${status}`).toBeGreaterThanOrEqual(200);
+      expect(status, `/ answered ${status}`).toBeLessThan(300);
+      expect(before.coarse, "matchMedia('(pointer: coarse)')").toBe(true);
+      expect.soft(q2, "/ @390, folded: the strip's ⌕ opens a pinned row, a pick opens in it, a second tap shuts it").toEqual([]);
+    });
+  });
+
+  test.describe("search @851", () => {
+    test.use({
+      viewport: { width: 851, height: 728 },
+      deviceScaleFactor: 2.4375,
+      hasTouch: true,
+      isMobile: true,
+      contextOptions: { reducedMotion: "reduce" },
+      storageState: { cookies: [], origins: [] },
+    });
+
+    // Q3. WIDER THAN A PHONE: the bar is in the page (A) and the open masthead
+    // has no ⌕; folded, the strip has one.
+    test("home (/) search @851", async ({ page, context }) => {
+      await context.addCookies([GATE_COOKIE]);
+      const response = await load(page, false);
+      const open = await readSearch(page);
+      await page.evaluate((key) => {
+        try {
+          localStorage.setItem(key, "folded");
+        } catch {
+          /* the folded read reports it */
+        }
+      }, FOLD_KEY);
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
+      await page.waitForLoadState("load").catch(() => {});
+      await page.waitForTimeout(2_500);
+      const folded = await readSearch(page);
+      const q3: string[] = [];
+      if (!open.ds) q3.push("the bar (.ds) isn't visible in the page");
+      else if (open.dsPos === "fixed") q3.push(".ds computes position fixed with the masthead open");
+      if (open.openFind) q3.push("the open masthead draws a visible .mh-find");
+      if (folded.attr !== "folded") q3.push(`folded: html data-masthead is ${JSON.stringify(folded.attr)}`);
+      if (!folded.stripFind) q3.push("folded: no visible .mh-find in the strip");
+      // eslint-disable-next-line no-console
+      console.log(
+        `[search 851] coarse=${open.coarse} inner=${open.inner} bar=${open.ds ? `${open.dsPos}@${r1(open.ds.t)}` : "hidden"}` +
+          ` open-find=${open.openFind ? "visible" : "none"} folded-attr=${folded.attr ?? "none"} strip-find=${folded.stripFind ? "visible" : "none"}` +
+          (q3.length ? `\n    Q3: ${q3.join("\n        ")}` : ""),
+      );
+      const status = response?.status() ?? 0;
+      expect(status, `/ answered ${status}`).toBeGreaterThanOrEqual(200);
+      expect(status, `/ answered ${status}`).toBeLessThan(300);
+      expect(open.coarse, "matchMedia('(pointer: coarse)')").toBe(true);
+      expect.soft(q3, "/ @851: the bar in the page, no ⌕ on the open masthead, one in the strip").toEqual([]);
+    });
+  });
+
+  test.describe("search @360", () => {
+    test.use({
+      viewport: { width: 360, height: 780 },
+      deviceScaleFactor: 3,
+      hasTouch: true,
+      isMobile: true,
+      contextOptions: { reducedMotion: "reduce" },
+      storageState: { cookies: [], origins: [] },
+    });
+
+    // Q4. BELOW 390, THE MASTHEAD OPEN (HO 821's review): the ⌕ stacks under
+    // HIDE, at HIDE's left edge and 8px under its foot; no text line in the
+    // masthead overlaps HIDE or the ⌕ (F2's read); a tap opens the bar with its
+    // input focused.
+    test("home (/) search, open @360", async ({ page, context }) => {
+      await context.addCookies([GATE_COOKIE]);
+      const response = await load(page, false);
+      const before = await readSearch(page);
+      const onHide = await overlaps(page, ":scope > .mh-hide");
+      const onFind = await overlaps(page, ":scope > .mh-find");
+      const q4: string[] = [];
+      if (before.ds) q4.push("the bar (.ds) is visible before the ⌕ is tapped");
+      if (!before.hide) q4.push("no visible HIDE in the open masthead");
+      else q4.push(...onHide.map((l) => `a text line overlaps HIDE: ${l}`));
+      if (!before.openFind) q4.push("no visible .mh-find in the open masthead");
+      else q4.push(...onFind.map((l) => `a text line overlaps the ⌕: ${l}`));
+      if (before.hide && before.openFind) {
+        if (Math.abs(before.openFind.l - before.hide.l) > 1)
+          q4.push(`the ⌕'s left edge ${r1(before.openFind.l)}, HIDE's ${r1(before.hide.l)}`);
+        if (Math.abs(before.openFind.t - before.hide.b - FIND_GAP) > 1)
+          q4.push(`the ⌕'s top is ${r1(before.openFind.t - before.hide.b)}px under HIDE's foot, not ${FIND_GAP}`);
+      }
+      const tapped = await tapBox(page, before.openFind);
+      const opened = await readSearch(page);
+      if (tapped) {
+        if (!opened.input) q4.push("after the tap no visible .ds input");
+        else if (!opened.focused) q4.push("the input isn't document.activeElement after the tap");
+      }
+      // eslint-disable-next-line no-console
+      console.log(
+        `[search 360 open] coarse=${before.coarse} inner=${before.inner} bar-before=${before.ds ? "visible" : "hidden"}` +
+          ` find=${before.openFind ? `${r1(before.openFind.w)}x${r1(before.openFind.h)}@${r1(before.openFind.l)},${r1(before.openFind.t)}` : "none"}` +
+          ` hide=${before.hide ? `${r1(before.hide.l)},${r1(before.hide.t)}-${r1(before.hide.b)}` : "none"}` +
+          ` lines-on-hide=${before.hide ? onHide.length : "none"} lines-on-find=${before.openFind ? onFind.length : "none"}` +
+          ` input=${opened.input ? r1(opened.input.t) : "none"} focused=${opened.focused}` +
+          (q4.length ? `\n    Q4: ${q4.join("\n        ")}` : ""),
+      );
+      const status = response?.status() ?? 0;
+      expect(status, `/ answered ${status}`).toBeGreaterThanOrEqual(200);
+      expect(status, `/ answered ${status}`).toBeLessThan(300);
+      expect(before.coarse, "matchMedia('(pointer: coarse)')").toBe(true);
+      expect.soft(q4, "/ @360, masthead open: the ⌕ under HIDE, clear of the title, opens the bar").toEqual([]);
+    });
+  });
+}
+searchCells();
 
 // HO 818 — THE ZONE CELLS (Z1 and Z2). The sync time cycles five zones, 4 s each,
 // and nothing after it on its line may move, nor the masthead grow, while it

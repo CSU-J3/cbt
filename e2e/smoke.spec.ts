@@ -1570,3 +1570,279 @@ test.describe("icon and manifest (HO 819)", () => {
     );
   });
 });
+
+// ── HO 821: the dashboard search ──────────────────────────────────────────────
+//
+// WHAT ITS ZERO MEANS: the two read-only routes answer as /search counts (S1:
+// the four counts equal the tab counts /search prints for the same q, each list
+// at most 4, a bill number puts its bill first), the card route answers a pick
+// and refuses a bad one without leaking a stack or a driver message (S2), and on
+// the dashboard at 1440 the bar sits under the masthead, takes `/`, lists as you
+// type, opens the pick as a card under itself, keeps it through a reload and
+// clears it (S3). It says NOTHING about speed on a phone's network, what a real
+// keyboard does, or a phone at all: the touch gate's Q1 to Q3 read the ⌕.
+//
+// THE CONTROL: claim 11, on prod at 601f90e, 2026-11-16 7:26 PM MST, read every
+// reading red. Both routes answered 404 with Next's HTML page (`public,
+// max-age=0, must-revalidate`): no counts against /search's (tax 1,696 / 0 / 52
+// / 15), no lists, no bills for tax or shutdown, `q=a` 404 not 400, no `ref`
+// for 119-hr-3978 (which CT holds), no card, no stages against the bill page's
+// six, `pick=nonsense` 404 not 400, and the not-found body HTML, not
+// `{"error":"not found"}`. On / at 1440 no `.ds` input, so `/`, the list, its
+// groups, `aria-expanded`, the card, the pick, the reload and the clear all read
+// red. The no-leak read is a GUARD, with no red at the base (nothing to leak).
+// Its control is a plant on a local build, the card route's read made to throw:
+// 503 `{"error":"unavailable"}` with no stack reads green, and a plant that
+// echoes the error into the body reads red.
+const SEARCH_QS = ["tax", "shutdown"] as const;
+const STACK_OR_DRIVER = /\bat [\w$.<>]+ \(|\n\s+at \S|SQLITE|LibsqlError/;
+
+test.describe("dashboard search (HO 821)", () => {
+  test.use({ storageState: { cookies: [], origins: [] }, viewport: { width: 1440, height: 900 } });
+  test.beforeEach(async ({ context }) => {
+    await context.addCookies([GATE_COOKIE]);
+  });
+
+  test("the routes answer as /search counts, and the bar finds, picks and keeps a pick", async ({ page, request }) => {
+    type Suggest = {
+      q?: string;
+      ref?: string | null;
+      counts?: Record<string, number>;
+      bills?: { id: string }[];
+      members?: unknown[];
+      news?: unknown[];
+      reports?: unknown[];
+    };
+    const timed = async (url: string) => {
+      const t0 = Date.now();
+      const r = await request.get(url);
+      const text = await r.text();
+      return { r, text, ms: Date.now() - t0 };
+    };
+    const tabCounts = async (q: string) => {
+      await page.goto(`/search?q=${encodeURIComponent(q)}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      return page.evaluate(() => {
+        const out: Record<string, number> = {};
+        for (const a of Array.from(document.querySelectorAll('.search-tabs a[role="tab"]'))) {
+          const tab = new URL((a as HTMLAnchorElement).href).searchParams.get("tab") ?? "";
+          out[tab] = Number((a.querySelector(".count")?.textContent ?? "").replace(/[^0-9]/g, ""));
+        }
+        return out;
+      });
+    };
+    const bodies: string[] = [];
+    const logParts: string[] = [];
+
+    // S1, the suggest route.
+    let firstBill: string | null = null;
+    for (const q of SEARCH_QS) {
+      const want = await tabCounts(q);
+      const { r, text, ms } = await timed(`/api/search/suggest?q=${encodeURIComponent(q)}`);
+      bodies.push(text);
+      let body: Suggest = {};
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = {};
+      }
+      const cc = r.headers()["cache-control"] ?? "";
+      expect.soft(r.status(), `S1 suggest q=${q} answers ${r.status()}`).toBe(200);
+      expect.soft(r.headers()["content-type"] ?? "", `S1 suggest q=${q} content-type`).toContain("application/json");
+      expect.soft(cc, `S1 suggest q=${q} cache-control reads "${cc}"`).toContain("s-maxage");
+      expect.soft(body.counts ?? null, `S1 q=${q}: the route's counts against /search's tabs ${JSON.stringify(want)}`).toEqual(want);
+      for (const k of ["bills", "members", "news", "reports"] as const) {
+        const n = Array.isArray(body[k]) ? (body[k] as unknown[]).length : -1;
+        expect.soft(n >= 0 && n <= 4, `S1 q=${q}: ${k} holds ${n} rows, not 0 to 4`).toBe(true);
+      }
+      // The shape read alone is vacuous on an empty list (claim 11 read it green
+      // on a 404), so it's one reading with the list's length: a q whose
+      // LEGISLATION tab counts bills (tax 1,696, shutdown 169) must list some,
+      // and every row must have the shape.
+      const billIds = (body.bills ?? []).map((b) => b.id);
+      const badIds = billIds.filter((id) => !/^\d+-[a-z]+-\d+$/.test(id));
+      expect.soft(
+        { listed: (want.bills ?? 0) > 0 ? billIds.length > 0 : true, offShape: badIds },
+        `S1 q=${q}: bills listed (its tab counts ${want.bills}) and none off the id shape`,
+      ).toEqual({ listed: true, offShape: [] });
+      firstBill ??= body.bills?.[0]?.id ?? null;
+      logParts.push(`${q}: ${r.status()} ${ms}ms counts=${JSON.stringify(body.counts ?? null)} /search=${JSON.stringify(want)}`);
+    }
+    const short = await timed("/api/search/suggest?q=a");
+    bodies.push(short.text);
+    expect.soft(short.r.status(), `S1 suggest q=a answers ${short.r.status()}, not 400`).toBe(400);
+
+    // The bill-number line, read the way HO 813's test reads it: whether CT
+    // holds the current Congress's HR 3978 decides what the route must say.
+    const refId = `${getCurrentCongress()}-hr-3978`;
+    const held = (await request.get(`/bill/${refId}`)).status() === 200;
+    const ref = await timed(`/api/search/suggest?q=${encodeURIComponent("hr 3978")}`);
+    bodies.push(ref.text);
+    let refBody: Suggest = {};
+    try {
+      refBody = JSON.parse(ref.text);
+    } catch {
+      refBody = {};
+    }
+    if (held) {
+      expect.soft(refBody.ref ?? null, `S1 hr 3978: ref`).toBe(refId);
+      expect.soft(refBody.bills?.[0]?.id ?? null, `S1 hr 3978: bills[0]`).toBe(refId);
+    } else {
+      test.info().annotations.push({ type: "flag", description: `CT holds no ${refId}, so ref is read as null` });
+      expect.soft(refBody.ref ?? null, `S1 hr 3978: CT holds no ${refId}, so ref`).toBeNull();
+    }
+    logParts.push(`hr 3978: ${ref.r.status()} ${ref.ms}ms ref=${refBody.ref ?? "null"} held=${held}`);
+
+    // S2, the card route.
+    const pickId = held ? refId : firstBill;
+    let cardTitle = "";
+    if (!pickId) expect.soft(pickId, "S2 has no bill to pick").not.toBeNull();
+    else {
+      const card = await timed(`/api/search/card?pick=${encodeURIComponent(`bill:${pickId}`)}`);
+      bodies.push(card.text);
+      let c: { title?: string; href?: string; stage?: string | null; stages?: string[] } = {};
+      try {
+        c = JSON.parse(card.text);
+      } catch {
+        c = {};
+      }
+      await page.goto(`/bill/${pickId}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      const pageTitle = ((await page.locator("h1").first().textContent()) ?? "").trim();
+      // The six stage labels the bill page draws (BillStageBar), held against the
+      // card's: the route's copy of them can't drift unread.
+      const pageStages = (await page.locator('.v2f-bar[aria-label="Bill stage"] .v2f-blabel').allTextContents()).map((s) => s.trim());
+      cardTitle = c.title ?? "";
+      expect.soft(card.r.status(), `S2 card bill:${pickId} answers ${card.r.status()}`).toBe(200);
+      expect.soft(cardTitle, `S2 card bill:${pickId}: title against the bill page's h1`).toBe(pageTitle);
+      expect.soft(c.href ?? "", `S2 card bill:${pickId}: href`).toBe(`/bill/${pickId}`);
+      if (pageStages.length === 6) {
+        expect.soft(c.stages ?? null, `S2 card bill:${pickId}: stages against the bill page's ${JSON.stringify(pageStages)}`).toEqual(pageStages);
+      } else {
+        test.info().annotations.push({ type: "flag", description: `/bill/${pickId} draws ${pageStages.length} stage labels, so its stage is read as null` });
+        expect.soft("stage" in c ? c.stage : "(missing)", `S2 card bill:${pickId}: the page draws no stage track, so the card's stage`).toBeNull();
+      }
+      logParts.push(`card bill:${pickId} ${card.r.status()} ${card.ms}ms stages=${JSON.stringify(c.stages ?? null)} page-stages=${JSON.stringify(pageStages)}`);
+    }
+    const bad = await timed("/api/search/card?pick=nonsense");
+    bodies.push(bad.text);
+    expect.soft(bad.r.status(), `S2 card pick=nonsense answers ${bad.r.status()}, not 400`).toBe(400);
+    const gone = await timed(`/api/search/card?pick=${encodeURIComponent(`bill:${getCurrentCongress()}-hr-999999`)}`);
+    bodies.push(gone.text);
+    expect.soft(gone.r.status(), `S2 card for a bill CT doesn't hold answers ${gone.r.status()}, not 404`).toBe(404);
+    // A status alone can't tell the route's 404 from no route (claim 11 read it
+    // green on Next's HTML 404), so the body is the route's own contract.
+    let goneBody: unknown = null;
+    try {
+      goneBody = JSON.parse(gone.text);
+    } catch {
+      goneBody = gone.text.slice(0, 60);
+    }
+    expect.soft(goneBody, "S2 card for a bill CT doesn't hold: the body").toEqual({ error: "not found" });
+    // A GUARD, with no red at the base by nature (no route, nothing to leak). Its
+    // control is a plant on a local build, recorded in the header.
+    const leaks = bodies.filter((b) => STACK_OR_DRIVER.test(b)).map((b) => b.slice(0, 120));
+    expect.soft(leaks, "S2: no body, red or green, holds a stack frame or a driver message").toEqual([]);
+
+    // S3, the bar at 1440, a fine pointer.
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.waitForLoadState("load").catch(() => {});
+    await page.waitForTimeout(1_500);
+    const boxes = await page.evaluate(() => {
+      const visible = (el: Element | null): el is HTMLElement =>
+        !!el && (el as HTMLElement).checkVisibility({ visibilityProperty: true }) && el.getBoundingClientRect().width > 0;
+      const inputs = Array.from(document.querySelectorAll('.ds input[type="search"]')).filter(visible);
+      const input = inputs[0] ?? null;
+      const ds = input?.closest(".ds") ?? null;
+      const header = document.querySelector(".dash-left > .home-header");
+      const left = document.querySelector(".dash-left");
+      // The first panel is read without the bar: the first visible child of
+      // .dash-left after the masthead that isn't the bar and doesn't hold it,
+      // so a bar drawn below a panel reads red.
+      const kids = left ? Array.from(left.children) : [];
+      const after = header ? kids.indexOf(header) + 1 : 0;
+      const panel = kids.slice(after).find((el) => !el.matches(".ds") && !el.querySelector(".ds") && visible(el)) ?? null;
+      const r = (el: Element | null | undefined) => (el ? el.getBoundingClientRect() : null);
+      const b = (el: Element | null | undefined) => {
+        const x = r(el);
+        return x ? { t: x.top, b: x.bottom, l: x.left, w: x.width } : null;
+      };
+      return { inputs: inputs.length, input: b(input), header: b(header), panel: b(panel), left: b(left) };
+    });
+    expect.soft(boxes.inputs, "S3: visible .ds input[type=search] on /").toBe(1);
+    // The placement reads four boxes; a missing one is a red reading, not a skip.
+    expect.soft(
+      { input: !!boxes.input, header: !!boxes.header, panel: !!boxes.panel, left: !!boxes.left },
+      "S3: the boxes the placement reads (the bar's input, the masthead, the first panel, .dash-left)",
+    ).toEqual({ input: true, header: true, panel: true, left: true });
+    if (boxes.input && boxes.header && boxes.panel && boxes.left) {
+      expect.soft(boxes.input.t >= boxes.header.b, `S3: the bar's top ${boxes.input.t} is below the masthead's bottom ${boxes.header.b}`).toBe(true);
+      expect.soft(boxes.input.t < boxes.panel.t, `S3: the bar's top ${boxes.input.t} is above the first panel's ${boxes.panel.t}`).toBe(true);
+      expect.soft(Math.abs(boxes.input.w - boxes.left.w), `S3: the bar ${boxes.input.w} wide, .dash-left ${boxes.left.w}`).toBeLessThanOrEqual(1);
+    }
+    const input = page.locator('.ds input[type="search"]').first();
+    let s3 = { slash: false, options: 0, groups: 0, maxGroup: 0,expanded: null as string | null, cardGap: null as number | null, href: "", pick: "", reloadTitle: "", cleared: false, firstTitle: "" };
+    if (boxes.inputs === 1) {
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await page.keyboard.press("/");
+      s3.slash = await input.evaluate((el) => el === document.activeElement);
+      await page.keyboard.type("tax", { delay: 60 });
+      await page.locator('.ds-drop [role="option"]').first().waitFor({ state: "visible", timeout: 5_000 }).catch(() => {});
+      const drop = await page.evaluate(() => {
+        const groups = Array.from(document.querySelectorAll(".ds-drop [role='group']"));
+        return {
+          options: document.querySelectorAll('.ds-drop [role="option"]').length,
+          groups: groups.length,
+          maxGroup: Math.max(0, ...groups.map((g) => g.querySelectorAll('[role="option"]').length)),
+          expanded: document.querySelector('.ds input[type="search"]')?.getAttribute("aria-expanded") ?? null,
+        };
+      });
+      Object.assign(s3, drop);
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Enter");
+      await page.locator(".ds-card").first().waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
+      const picked = await page.evaluate(() => {
+        const card = document.querySelector(".ds-card");
+        const form = document.querySelector(".ds form");
+        const open = card?.querySelector("a.ds-card-open") as HTMLAnchorElement | null;
+        return {
+          gap: card && form ? card.getBoundingClientRect().top - form.getBoundingClientRect().bottom : null,
+          href: open?.getAttribute("href") ?? "",
+          pick: new URL(location.href).searchParams.get("pick") ?? "",
+          title: (card?.querySelector(".ds-card-title")?.textContent ?? "").trim(),
+        };
+      });
+      s3.cardGap = picked.gap;
+      s3.href = picked.href;
+      s3.pick = picked.pick;
+      s3.firstTitle = picked.title;
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
+      await page.locator(".ds-card").first().waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
+      s3.reloadTitle = ((await page.locator(".ds-card .ds-card-title").first().textContent().catch(() => "")) ?? "").trim();
+      await page.locator(".ds-card .ds-card-clear").first().click({ timeout: 5_000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      s3.cleared = await page.evaluate(
+        () => !document.querySelector(".ds-card") && !new URL(location.href).searchParams.has("pick"),
+      );
+    }
+    expect.soft(s3.slash, "S3: / from the page body focuses the bar").toBe(true);
+    expect.soft(s3.options, "S3: typing tax lists options within 5 s").toBeGreaterThan(0);
+    // Vacuous with no list (the re-run of claim 11 read it green at the base), so
+    // one reading with the group count: groups drawn, none holding more than 4.
+    expect.soft(
+      { grouped: s3.groups > 0, over4: s3.maxGroup > 4 },
+      `S3: ${s3.groups} groups, the largest ${s3.maxGroup} rows: groups drawn, none over 4`,
+    ).toEqual({ grouped: true, over4: false });
+    expect.soft(s3.expanded, "S3: the input's aria-expanded while listing").toBe("true");
+    expect.soft(s3.cardGap !== null && s3.cardGap >= 0 && s3.cardGap <= 8, `S3: the card's top sits ${s3.cardGap}px under the bar`).toBe(true);
+    expect.soft(s3.href.startsWith("/bill/"), `S3: the card's OPEN link reads ${s3.href}`).toBe(true);
+    expect.soft(s3.pick, "S3: the URL's pick").toBe(`bill:${s3.href.replace(/^\/bill\//, "")}`);
+    expect.soft(s3.reloadTitle, "S3: after a reload the card is back with the same title").toBe(s3.firstTitle || "(no card title read)");
+    expect.soft(s3.cleared, "S3: ✕ on the card clears it and the pick").toBe(true);
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[search] ${logParts.join(" | ")} | card-title=${JSON.stringify(cardTitle)}` +
+        ` | S3 inputs=${boxes.inputs} input=${JSON.stringify(boxes.input)} header-bottom=${boxes.header?.b ?? "none"} panel-top=${boxes.panel?.t ?? "none"} left-w=${boxes.left?.w ?? "none"}` +
+        ` slash=${s3.slash} options=${s3.options} groups=${s3.groups} max-group=${s3.maxGroup} expanded=${s3.expanded} gap=${s3.cardGap} pick=${s3.pick || "none"} reload=${JSON.stringify(s3.reloadTitle)} cleared=${s3.cleared}`,
+    );
+  });
+});

@@ -123,7 +123,8 @@ export const FIXTURE_ROUTES: Route[] = [
 // text-entry control and that each one computes 16px or more, the size under
 // which iOS Safari zooms the page on focus. On a route with no control the
 // first half has nothing to read, so the gate walks only the routes that carry
-// one: 9 of the 38, two viewports, 18 documents a run.
+// one: 10 of the 38 since HO 821 put `home` on it (9 before), two viewports,
+// 20 documents a run.
 //
 // THE LIST IS ENFORCED, NOT TRUSTED, and the enforcer is the narrow spec. It
 // walks every route at every width already, so it asserts there, at no extra
@@ -146,6 +147,10 @@ export const TEXT_ENTRY_SELECTOR =
   'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select, textarea';
 
 export const TOUCH_SLUGS = [
+  // HO 821: the dashboard's search bar is a text-entry control on `/`, so the
+  // narrow spec's enforcer requires `home` here. On a phone the bar sits behind
+  // the ⌕ (ruled C), and the touch cell opens it before it reads the controls.
+  "home",
   "welcome",
   "bills",
   "members",
