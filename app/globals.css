@@ -9664,6 +9664,292 @@ a.rl-nm:hover,
     background-color: var(--bg-base);
   }
 }
+
+/* HO 821 — THE DASHBOARD'S SEARCH, RULED A · C · Z. Corey, 12:47 PM MST
+   2026-11-16: "Dashboard needs a search bar in a good location both on mobile
+   and web. and when you search, have it activity pulling stuff and when
+   selecting, it stays on the dashboard displaying whatever info we selected,
+   with a button to go to whatever that page is." Then, 1:15 PM MST, on mock-821
+   v1 with WEB 1440, A, C and Z set: "is my pick". The ruled mock is v2, kept
+   under docs/design; the island is
+   components/DashboardSearch.tsx and the ⌕ is components/MastheadFold.tsx's.
+
+   - A, THE BAR: in `.dash-left` under the masthead and its tapes, above the
+     first panel, the column's width, scrolling with the page. The input fills
+     the bar, with the ⌕ prompt, the `/` hint and ✕ drawn in its padding, so the
+     input's box is the column's (the gate's S3). 34px under a fine pointer; 40
+     under a coarse one, with the input at 16px there, under which iOS zooms
+     the page on focus. z-index 54: over every in-flow popover (50 and under),
+     so the list draws over the panels; under HO 820's strip (55), so the bar
+     slides under a folded strip.
+   - C, A PHONE (`(pointer: coarse) and (max-width: 700px)`, HO 817's line): no
+     bar until the ⌕ asks (`html[data-search="open"]`). The open masthead's ⌕
+     sits 8px left of HIDE (`right: 36px`, HIDE's 28 plus 8), so the title's
+     reserve doubles to 72. A coarse pointer wider than that (the open Fold, a
+     tablet) gets the bar as A, and no ⌕ on the open masthead.
+   - BELOW 390 (HO 821's review): the title's first line, "Congressional
+     Terminal:\", doesn't break (294px), so 72 can't clear it under about 382px
+     (22px over at 360). There the ⌕ stacks under HIDE, at HIDE's right edge and
+     `top: 44px` (HIDE's 8 + 28, plus 8), beside the title's second line, and
+     the reserve goes back to HO 817's 36. The breakpoint is 389, so 390 keeps
+     the ruled layout; it's a fallback below the mock's 390.
+   - ANY COARSE POINTER, FOLDED: the strip's ⌕ shows, and the open bar pins
+     under HO 820's strip as HO 820's strip pins: below 1400px fixed at 45 (the
+     header's 44.5 by its rules, reserved as 45), full width with `.home-main`'s
+     inline padding; from 1400px sticky at 45 in `.dash-left`, at the column's
+     width, so it never crosses the feed column (HO 820's review). It scrolls
+     inside itself, and its list goes static in its flow. The pinned row stays
+     at z-index 54 in both bands, as the bar: over every in-flow popover and
+     under the strip (55) and so under its ☰ drawer, which a pinned row at 55
+     covered (HO 821's review).
+   - Z, THE PICK: the card opens under the bar in the page's flow, so the panels
+     below move down by its height; typing again opens the list over it. Under
+     700px the bill card's stage track keeps its six bars and shows only the
+     current stage's label, left-aligned under its bar and free to run past it
+     (HO 821's review: at 390 COMMITTEE ran into FLOOR and OTHER CHAMBER was cut
+     against PRESIDENT). A null stage draws no track, so no label.
+   - A fine pointer never draws a ⌕. */
+.mh-find { display: none; }
+
+.ds { position: relative; z-index: 54; font-family: var(--font-mono); }
+.ds form { position: relative; margin: 0; }
+.ds input[type="search"] {
+  display: block; width: 100%; height: 34px; margin: 0;
+  padding: 0 34px 0 32px;
+  font-family: var(--font-mono); font-size: var(--fs-13); letter-spacing: 0.02em;
+  color: var(--text-primary); background-color: var(--bg-panel);
+  border: 1px solid var(--border-strong); border-radius: 2px;
+  outline: none; -webkit-appearance: none; appearance: none;
+}
+.ds input[type="search"]::placeholder { color: var(--text-dim); }
+.ds input[type="search"]::-webkit-search-cancel-button { display: none; -webkit-appearance: none; }
+.ds form:focus-within input[type="search"] { border-color: var(--accent-amber); }
+.ds-prompt {
+  position: absolute; left: 11px; top: 0; height: 34px;
+  display: flex; align-items: center;
+  color: var(--accent-amber); pointer-events: none;
+}
+.ds-kbd {
+  position: absolute; right: 9px; top: 9px; display: none;
+  padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 2px;
+  font-size: var(--fs-10); line-height: 14px; color: var(--text-dim);
+  pointer-events: none;
+}
+.ds-x {
+  position: absolute; right: 4px; top: 4px; width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  background: none; border: 0; color: var(--text-dim); font-size: 14px; cursor: pointer;
+}
+.ds-x:hover { color: var(--text-primary); }
+
+/* The request in flight: a 2px amber run along the bar's foot. */
+.ds-pull {
+  position: absolute; left: 0; right: 0; top: 32px; height: 2px;
+  overflow: hidden; opacity: 0; pointer-events: none;
+}
+.ds-pull.on { opacity: 1; }
+.ds-pull::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -30%; width: 30%;
+  background-color: var(--accent-amber);
+  animation: ds-pull 0.7s linear infinite;
+}
+@keyframes ds-pull { from { left: -30%; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .ds-pull::before { animation: none; left: 0; width: 100%; }
+}
+
+/* The list: the bar's width, over the panels. */
+.ds-drop {
+  position: absolute; left: 0; right: 0; top: 100%;
+  max-height: 440px; overflow-y: auto;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--accent-amber); border-top: 0;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+}
+.ds-group + .ds-group { border-top: 1px solid var(--border-soft); }
+.ds-gh {
+  display: flex; justify-content: space-between; padding: 7px 10px 3px;
+  font-size: var(--fs-10); letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ds-gc { color: var(--text-muted); }
+.ds-opt {
+  display: flex; align-items: baseline; gap: 9px; padding: 6px 10px;
+  font-size: var(--fs-12); cursor: pointer;
+}
+.ds-opt:hover,
+.ds-opt.cur { background-color: var(--bg-row-hover); }
+.ds-opt.cur { box-shadow: inset 2px 0 0 var(--accent-amber); }
+.ds-id {
+  flex: none; min-width: 58px; white-space: nowrap;
+  font-size: var(--fs-11); color: var(--accent-amber);
+}
+.ds-tt {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--sans); color: var(--text-primary);
+}
+.ds-tt mark { background: none; color: var(--accent-amber-bright); }
+.ds-mt { flex: none; white-space: nowrap; font-size: var(--fs-10); color: var(--text-dim); }
+.ds-stat {
+  padding: 6px 10px; border-bottom: 1px solid var(--border-soft);
+  font-size: var(--fs-10); letter-spacing: 0.05em; color: var(--text-dim);
+}
+.ds-stat b { font-weight: 500; color: var(--accent-amber-bright); }
+.ds-empty { padding: 12px 10px; font-size: var(--fs-11); color: var(--text-dim); }
+.ds-foot {
+  display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px;
+  border-top: 1px solid var(--border-strong);
+  font-size: var(--fs-10); letter-spacing: 0.04em; color: var(--text-dim);
+}
+.ds-foot a { margin-left: auto; color: var(--accent-amber); text-decoration: none; overflow-wrap: anywhere; }
+.ds-foot-keys { display: none; }
+
+@media (pointer: fine) {
+  .ds-kbd { display: block; }
+  .ds-foot-keys { display: inline; }
+}
+
+/* The card. */
+.ds-card {
+  margin-top: 6px; padding: 12px 14px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-strong); border-left: 2px solid var(--accent-amber);
+}
+.ds-card-h {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-11); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ds-tag {
+  padding: 1px 5px; border: 1px solid var(--accent-amber);
+  font-size: var(--fs-10); color: var(--accent-amber-bright);
+}
+.ds-sp { flex: 1; }
+.ds-card-clear {
+  padding: 0 4px; background: none; border: 0; line-height: 1;
+  font-size: 14px; color: var(--text-dim); cursor: pointer;
+}
+.ds-card-clear:hover { color: var(--text-primary); }
+.ds-card-t {
+  margin: 8px 0 4px; overflow-wrap: anywhere;
+  font-family: var(--sans); font-size: 17px; font-weight: 600; line-height: 1.3;
+  color: var(--text-primary);
+}
+.ds-card-id {
+  margin-right: 8px;
+  font-family: var(--font-mono); font-size: var(--fs-13); font-weight: 500;
+  color: var(--accent-amber);
+}
+.ds-card-ps { font-family: var(--font-mono); font-size: var(--fs-13); font-weight: 500; }
+.ds-track { display: flex; gap: 3px; margin: 10px 0 4px; }
+.ds-track span {
+  flex: 1; min-width: 0; overflow: hidden; white-space: nowrap;
+  padding-top: 4px; border-top: 3px solid var(--border-strong);
+  font-size: var(--fs-9); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ds-track span.done { border-top-color: var(--stage-committee); color: var(--text-muted); }
+.ds-track span.now { border-top-color: var(--accent-amber-bright); color: var(--accent-amber-bright); }
+@media (max-width: 700px) {
+  .ds-track span { font-size: 0; }
+  .ds-track span.now { overflow: visible; font-size: var(--fs-9); }
+}
+.ds-card-meta { font-size: var(--fs-11); line-height: 1.7; color: var(--text-muted); overflow-wrap: anywhere; }
+.ds-r { color: var(--party-republican); }
+.ds-d { color: var(--party-democrat); }
+.ds-i { color: var(--party-independent); }
+.ds-card-sum {
+  margin: 8px 0 0;
+  font-family: var(--sans); font-size: var(--fs-13); line-height: 1.55;
+  color: var(--text-secondary);
+}
+.ds-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.ds-chip {
+  padding: 2px 6px; border: 1px solid var(--border-strong);
+  font-size: var(--fs-9); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ds-chip.b { border-color: var(--accent-amber); color: var(--accent-amber); }
+.ds-stats { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 10px; font-size: var(--fs-11); color: var(--text-muted); }
+.ds-stats b { display: block; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+.ds-go-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.ds-go {
+  display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 2px;
+  font-size: var(--fs-11); font-weight: 600; letter-spacing: 0.06em; text-decoration: none;
+  color: var(--bg-base); background-color: var(--accent-amber-bright);
+  border: 1px solid var(--accent-amber-bright);
+}
+.ds-go.sec { color: var(--accent-amber); background-color: transparent; border-color: var(--accent-amber); }
+.ds-go-path { font-size: var(--fs-10); color: var(--text-dim); overflow-wrap: anywhere; }
+.ds-note {
+  margin-top: 6px; padding: 8px 12px;
+  background-color: var(--bg-panel); border: 1px solid var(--border-strong);
+  font-size: var(--fs-11); color: var(--text-muted);
+}
+
+@media (pointer: coarse) {
+  .ds input[type="search"] { height: 40px; font-size: 16px; }
+  .ds-prompt { height: 40px; }
+  .ds-x { top: 2px; right: 2px; width: 36px; height: 36px; }
+  .ds-pull { top: 38px; }
+  .ds-drop { max-height: 520px; }
+  .ds-go { min-height: 44px; padding: 0 14px; }
+
+  .mh-find {
+    position: relative; align-items: center; justify-content: center;
+    width: 28px; height: 28px; padding: 0;
+    color: var(--text-secondary); background-color: var(--bg-base);
+    border: 1px solid var(--border-strong); border-radius: 4px; cursor: pointer;
+  }
+  .mh-find[aria-expanded="true"] { color: var(--accent-amber-bright); border-color: var(--accent-amber); }
+  .mh-find::after { content: ""; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+  .mh-strip .mh-find { display: inline-flex; }
+
+  /* Folded and open, the list goes static in the pinned row's flow. */
+  html[data-masthead="folded"][data-search="open"] .ds-drop {
+    position: static; max-height: none; box-shadow: none;
+  }
+}
+
+@media (pointer: coarse) and (max-width: 700px) {
+  .ds { display: none; }
+  html[data-search="open"] .ds { display: block; }
+  .home-header > .mh-find { display: inline-flex; position: absolute; top: 8px; right: 36px; z-index: 3; }
+  html[data-masthead="folded"] .home-header > .mh-find { display: none; }
+  .home-header-prompt-row .breadcrumb-path { max-width: calc(100% - 72px); }
+}
+
+/* Below 390, the ⌕ under HIDE and the reserve back to 36. */
+@media (pointer: coarse) and (max-width: 389px) {
+  .home-header > .mh-find { top: 44px; right: 0; }
+  .home-header-prompt-row .breadcrumb-path { max-width: calc(100% - 36px); }
+}
+
+/* Folded, one column: fixed under the fixed strip. */
+@media (pointer: coarse) and (max-width: 1399px) {
+  html[data-masthead="folded"][data-search="open"] .ds {
+    position: fixed; top: 45px; left: 0; right: 0; z-index: 54;
+    max-height: calc(100dvh - 45px); overflow-y: auto;
+    padding: 8px var(--space-xl);
+    background-color: var(--bg-base);
+    border-bottom: 1px solid var(--border-strong);
+  }
+}
+
+@media (pointer: coarse) and (max-width: 700px) {
+  html[data-masthead="folded"][data-search="open"] .ds { padding-inline: var(--space-md); }
+}
+
+/* Folded, two columns: sticky in the column under the sticky strip. */
+@media (pointer: coarse) and (min-width: 1400px) {
+  html[data-masthead="folded"][data-search="open"] .ds {
+    position: sticky; top: 45px; z-index: 54;
+    max-height: calc(100dvh - 45px); overflow-y: auto;
+    padding: 8px 0;
+    background-color: var(--bg-base);
+    border-bottom: 1px solid var(--border-strong);
+  }
+}
 /* HO 619 (C1) — the summary FOLLOWS the controls; `margin-left: auto` pinned it
    to the right of a 2,528px control bar and opened a 1,821px void. */
 .cart-summary {

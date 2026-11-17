@@ -9,6 +9,7 @@ import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
 import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
 import type { TopicDatum } from "@/components/TopicDistributionList";
+import { DashboardSearch } from "@/components/DashboardSearch";
 import { DashboardV2Header } from "@/components/DashboardV2Header";
 import { HearingsTab } from "@/components/HearingsTab";
 import { NewThisWeek } from "@/components/NewThisWeek";
@@ -186,6 +187,12 @@ export default async function DashboardPage({
       <main className="home-main dash-page">
         <div className="dash-left">
           <DashboardV2Header corpus={corpus} stageDist={stageDistFull} />
+
+          {/* HO 821 — the dashboard's search (ruled A · C · Z on mock-821
+              v2, kept under docs/design): the bar under the
+              masthead, before the first panel, and a pick's card under the bar.
+              On a phone it waits behind the masthead's ⌕. */}
+          <DashboardSearch />
 
           {/* Conditional chrome — renders nothing unless a filter is active, which
               is C4-compliant as-is, so it keeps its slot at the top of the left

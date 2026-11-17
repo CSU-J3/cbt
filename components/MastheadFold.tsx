@@ -30,19 +30,69 @@ import { writePref } from "@/lib/prefs";
 // before first paint. FULL renders only once an effect has read
 // `document.fullscreenEnabled`, so the server and the first client render agree
 // and an iPhone, which gives a page no full screen, never draws it.
+//
+// HO 821 — `search` (the dashboard passes it; HeaderBar doesn't) draws the ⌕
+// twice: on the open masthead beside HIDE, and in the strip before the menu. A
+// tap dispatches `cbt:search-toggle` on `window`, which the dashboard's search
+// (components/DashboardSearch.tsx) answers by opening or closing its bar; its
+// `cbt:search-state` keeps `aria-expanded` here. Which ⌕ shows where is CSS
+// (app/globals.css, the HO 821 block): a phone's open masthead, and any coarse
+// pointer's folded strip; a fine pointer never draws one.
+function Magnifier() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="5.8" cy="5.8" r="4.3" />
+      <path d="M9 9l3.8 3.8" />
+    </svg>
+  );
+}
+
 export function MastheadFold({
   label,
   items,
   active,
+  search = false,
 }: {
   label: string;
   items: readonly NavItem[];
   active: NavItemKey | null;
+  search?: boolean;
 }) {
   const hideRef = useRef<HTMLButtonElement>(null);
   const showRef = useRef<HTMLButtonElement>(null);
   const [canFull, setCanFull] = useState(false);
   const [isFull, setIsFull] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    if (!search) return;
+    const sync = (e: Event) =>
+      setSearchOpen(Boolean((e as CustomEvent<{ open?: boolean }>).detail?.open));
+    setSearchOpen(document.documentElement.dataset.search === "open");
+    window.addEventListener("cbt:search-state", sync);
+    return () => window.removeEventListener("cbt:search-state", sync);
+  }, [search]);
+
+  const findButton = search ? (
+    <button
+      type="button"
+      className="mh-find"
+      aria-label="Search"
+      aria-expanded={searchOpen}
+      onClick={() => window.dispatchEvent(new Event("cbt:search-toggle"))}
+    >
+      <Magnifier />
+    </button>
+  ) : null;
   // HO 818 — THE MENU CLOSES ON SHOW AND ON HIDE. The drawer keeps its own open
   // state, and on Corey's Fold (Nov 15) SHOW unfolded a page with the menu open
   // and the next HIDE brought it back open. HIDE and SHOW each give the drawer a
@@ -87,6 +137,7 @@ export function MastheadFold({
           ▴
         </i>
       </button>
+      {findButton}
       <div className="mh-strip">
         <span className="mh-path">
           <Link href="/" aria-label="Congressional Terminal — dashboard">
@@ -98,6 +149,7 @@ export function MastheadFold({
           </span>
         </span>
         <span className="mh-btns">
+          {findButton}
           <MobileNavDrawer key={menuKey} items={items} active={active} />
           {canFull ? (
             <button

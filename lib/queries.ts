@@ -9004,22 +9004,54 @@ export const searchNews = unstable_cache(
             LIMIT ?`,
       args: [like, like, like, SEARCH_LIMIT],
     });
-    return rs.rows.map((r) => ({
-      id: Number(r.id),
-      billId: r.bill_id as string,
-      billTitle: r.bill_title as string,
-      billSponsorName: (r.bill_sponsor_name as string | null) ?? null,
-      billSponsorParty: (r.bill_sponsor_party as string | null) ?? null,
-      source: r.source as string,
-      title: r.article_title as string,
-      url: r.article_url as string,
-      publishedAt: r.published_at as string,
-      otherBills: [],
-    }));
+    return rs.rows.map(rowToSearchNewsMention);
   },
   ["searchNews"],
   { revalidate: 600, tags: ["news-breaking", "bills"] },
 );
+
+// searchNews's row mapping, lifted so HO 821's point lookup below maps its row
+// the same way (one mapper, not two).
+function rowToSearchNewsMention(r: Record<string, unknown>): NewsMention {
+  return {
+    id: Number(r.id),
+    billId: r.bill_id as string,
+    billTitle: r.bill_title as string,
+    billSponsorName: (r.bill_sponsor_name as string | null) ?? null,
+    billSponsorParty: (r.bill_sponsor_party as string | null) ?? null,
+    source: r.source as string,
+    title: r.article_title as string,
+    url: r.article_url as string,
+    publishedAt: r.published_at as string,
+    otherBills: [],
+  };
+}
+
+// HO 821 — one news mention by its primary key, for the dashboard search's card
+// (`app/api/search/card/route.ts`, `pick=news:<id>`). searchNews's columns, its
+// INNER JOIN on bills (so the bill is always there: `news_mentions.bill_id` is
+// NOT NULL) and its mapper. No index hint: `INDEXED BY idx_news_mentions_published`
+// is searchNews's, for a LIKE scan, and would turn this primary-key read into
+// one. Uncached, like getBillById: the route's response carries its own cache.
+// The STEP 0 ruling's one new read (getNewsForBill reads a window of a bill's
+// latest stories, so an older story /search lists would 404 through it).
+export async function getNewsMentionById(id: number): Promise<NewsMention | null> {
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `SELECT m.id, m.bill_id, m.source, m.article_title, m.article_url,
+                 m.published_at,
+                 b.title AS bill_title,
+                 b.sponsor_name AS bill_sponsor_name,
+                 b.sponsor_party AS bill_sponsor_party
+          FROM news_mentions m
+          INNER JOIN bills b ON b.id = m.bill_id
+          WHERE m.id = ?
+          LIMIT 1`,
+    args: [id],
+  });
+  const r = rs.rows[0];
+  return r ? rowToSearchNewsMention(r) : null;
+}
 
 export type ReportSearchResult = {
   slug: string;

@@ -170,8 +170,9 @@ export async function DashboardV2Header({
 
       {/* HO 817: HIDE and the folded strip, whose menu is the HO 156 drawer
           that mounted here (components/MastheadFold.tsx). Drawn only under a
-          coarse pointer. */}
-      <MastheadFold label={lastSegment(segments)} items={NAV_ITEMS} active="dashboard" />
+          coarse pointer. HO 821: `search` adds the ⌕ beside HIDE and in the
+          strip, which opens the dashboard's search on a phone. */}
+      <MastheadFold label={lastSegment(segments)} items={NAV_ITEMS} active="dashboard" search />
 
       {/* HO 690 — THE NAV MOVED ABOVE THE TAPES (ruled by Corey 2026-09-03, "3.
           yes", against docs/design/mock-690-chrome.html § 03). It had sat under
