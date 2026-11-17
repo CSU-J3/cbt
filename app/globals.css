@@ -9720,6 +9720,7 @@ a.rl-nm:hover,
   color: var(--text-primary); background-color: var(--bg-panel);
   border: 1px solid var(--border-strong); border-radius: 2px;
   outline: none; -webkit-appearance: none; appearance: none;
+  text-overflow: ellipsis;
 }
 .ds input[type="search"]::placeholder { color: var(--text-dim); }
 .ds input[type="search"]::-webkit-search-cancel-button { display: none; -webkit-appearance: none; }
