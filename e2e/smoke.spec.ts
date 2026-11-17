@@ -1580,7 +1580,22 @@ test.describe("icon and manifest (HO 819)", () => {
 // the dashboard at 1440 the bar sits under the masthead, takes `/`, lists as you
 // type, opens the pick as a card under itself, keeps it through a reload and
 // clears it (S3). It says NOTHING about speed on a phone's network, what a real
-// keyboard does, or a phone at all: the touch gate's Q1 to Q3 read the ⌕.
+// keyboard does, or a phone at all: the touch gate's Q1 to Q4 read the ⌕.
+//
+// S1'S CACHE HEADER, AS EACH HOST SERVES IT (HO 821's follow-up). The route sends
+// `public, s-maxage=60, stale-while-revalidate=300`. With no `x-vercel-cache`
+// header (a local `next start`) S1 reads that header untouched: it holds
+// `s-maxage=60`. Behind Vercel's CDN, which consumes `s-maxage` and
+// `stale-while-revalidate` and forwards `public` (e2e-prod 44033213197, the
+// Production run after HO 821's FF, read `public` and went red on `s-maxage`),
+// S1 reads `vercelCacheable`: `public`, and none of `no-store`, `private`,
+// `max-age=0` or `must-revalidate`. Then it repeats the request once and LOGS the
+// repeat's `x-vercel-cache` and time, unasserted: a cold edge can miss twice.
+// ITS CONTROL is `CLAIM11_404_CC`, `public, max-age=0, must-revalidate`, the header
+// claim 11 read on prod at 601f90e on 2026-11-16 (7:26 PM MST), when both routes
+// answered Next's 404 page. It's the header Vercel sends for a response the route
+// sets nothing on, and it holds `public`, so a check on `public` alone would pass
+// it. `vercelCacheable` must reject it, inside S1, on every run.
 //
 // THE CONTROL: claim 11, on prod at 601f90e, 2026-11-16 7:26 PM MST, read every
 // reading red. Both routes answered 404 with Next's HTML page (`public,
@@ -1596,6 +1611,13 @@ test.describe("icon and manifest (HO 819)", () => {
 // echoes the error into the body reads red.
 const SEARCH_QS = ["tax", "shutdown"] as const;
 const STACK_OR_DRIVER = /\bat [\w$.<>]+ \(|\n\s+at \S|SQLITE|LibsqlError/;
+const CLAIM11_404_CC = "public, max-age=0, must-revalidate";
+const UNCACHEABLE = ["no-store", "private", "max-age=0", "must-revalidate"];
+// Behind Vercel's CDN: `public`, and none of the four, read directive by directive.
+function vercelCacheable(cc: string): boolean {
+  const d = cc.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+  return d.includes("public") && !d.some((x) => UNCACHEABLE.includes(x));
+}
 
 test.describe("dashboard search (HO 821)", () => {
   test.use({ storageState: { cookies: [], origins: [] }, viewport: { width: 1440, height: 900 } });
@@ -1634,6 +1656,9 @@ test.describe("dashboard search (HO 821)", () => {
     const logParts: string[] = [];
 
     // S1, the suggest route.
+    expect
+      .soft(vercelCacheable(CLAIM11_404_CC), `S1's control: the Vercel predicate passes claim 11's 404 header "${CLAIM11_404_CC}"`)
+      .toBe(false);
     let firstBill: string | null = null;
     for (const q of SEARCH_QS) {
       const want = await tabCounts(q);
@@ -1648,7 +1673,21 @@ test.describe("dashboard search (HO 821)", () => {
       const cc = r.headers()["cache-control"] ?? "";
       expect.soft(r.status(), `S1 suggest q=${q} answers ${r.status()}`).toBe(200);
       expect.soft(r.headers()["content-type"] ?? "", `S1 suggest q=${q} content-type`).toContain("application/json");
-      expect.soft(cc, `S1 suggest q=${q} cache-control reads "${cc}"`).toContain("s-maxage");
+      const edge = r.headers()["x-vercel-cache"] ?? null;
+      if (edge === null) {
+        expect.soft(cc, `S1 suggest q=${q}, no x-vercel-cache: cache-control reads "${cc}"`).toContain("s-maxage=60");
+      } else {
+        expect.soft(vercelCacheable(cc), `S1 suggest q=${q}, x-vercel-cache ${edge}: cache-control reads "${cc}"`).toBe(true);
+      }
+      let repeat = "none";
+      if (edge !== null) {
+        const again = await timed(`/api/search/suggest?q=${encodeURIComponent(q)}`);
+        repeat = `${again.r.headers()["x-vercel-cache"] ?? "none"} ${again.ms}ms`;
+      }
+      // eslint-disable-next-line no-console
+      console.log(
+        `[search cache] ${q}: branch=${edge === null ? "local" : "vercel"} cc="${cc}" x-vercel-cache=${edge ?? "none"} repeat=${repeat} control=${vercelCacheable(CLAIM11_404_CC) ? "PASSED" : "rejected"}`,
+      );
       expect.soft(body.counts ?? null, `S1 q=${q}: the route's counts against /search's tabs ${JSON.stringify(want)}`).toEqual(want);
       for (const k of ["bills", "members", "news", "reports"] as const) {
         const n = Array.isArray(body[k]) ? (body[k] as unknown[]).length : -1;
