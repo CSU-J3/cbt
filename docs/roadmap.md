@@ -3581,3 +3581,26 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - Leg H: the hit by hand at 1440 under touch, folded; 375 and 389 clear; captures at 360 and of S 4964's card at 390 and 360.
 - **Owed at the FF, Corey's call (GradShow is Nov 18):** the push, `verify:deploy`, CI and the Production `e2e-prod` run at 234; Corey sees Legs F and H; then on the Fold and the first iPhone, the new backlog line's close.
 - **Also notes now run through HO 821.**
+
+**Also (HO 821, after its FF), S1 reads the suggest route's cache header as each host serves it, and the bar's placeholder ends in an ellipsis.** Built on a new `821-review` from `35bc90f`, ruled in `821-s1-followup.md`. It's a test, one CSS declaration, this block and SKILL.
+
+- **HO 821's FF, as taken.** Corey's *"Yes live"* (11:02 PM MST Nov 16) made the FF conditional on the review fix, which read as ruled (`paste-821-fix.md`): the pinned row at z 54, the ⌕ under HIDE below 390 with the 36 reserve, and the phone track's one label.
+  - `main` went `601f90e..35bc90f`, pushed 11:41:50 PM with no force. `821-review` was deleted and the scratch worktrees removed.
+  - Production record `7846206570`, `success`; prod served `35bc90f` from 11:42:41 PM. CI `44033127642` passed, and the tip's `narrow-preview` `44032095708` passed 168.
+- **The red.** The Production `e2e-prod` run `44033213197` read 233 of 234 (crawl step 8m36s, job 9m17s).
+  - S1 read the suggest route's `cache-control` as `public` with no `s-maxage`, for both queries on all three attempts. The route sends `public, s-maxage=60, stale-while-revalidate=300`; Vercel's CDN consumes the last two directives and forwards `public`.
+  - Every other reading held on prod, and the counts equalled `/search`'s.
+  - Leg C had printed `cc="public"` on the Preview before the push, but it wasn't read against S1, and smoke runs on no Preview.
+- **The ruling:** no revert. S1 reads the header by host:
+  - with no `x-vercel-cache` (a local `next start`), `s-maxage=60`;
+  - behind Vercel, `public` and none of `no-store`, `private`, `max-age=0` or `must-revalidate`, then one repeat with its `x-vercel-cache` and time logged, not asserted.
+
+  Its control, inside S1: the same predicate must reject `public, max-age=0, must-revalidate`. That's claim 11's 404 header, which a check on `public` alone would pass. And from `app-390-card-s4964-screen.png`: the bar's input gets `text-overflow: ellipsis`, since the phone's placeholder was cut mid-word.
+- **Read before the push:**
+  - **Locally:** S1 on a local build took the local branch and read `public, s-maxage=60, stale-while-revalidate=300` green. A plant that drops the route's header read it red, with `cache-control` empty.
+  - **On prod:** the new S1 against `35bc90f` (12:34 PM MST Nov 17) took the Vercel branch and read `public`. The first answer was a `MISS` and the repeat a `HIT` in 42 and 41 ms; the control was rejected and the test passed.
+  - **The placeholder:** at 390 it reads *Search bills, members, news, …*, and at 360 *Search bills, members, new…*.
+  - The gates and the tip's `narrow-preview` are in `paste-821-s1.md`.
+- **Owed at this FF,** which runs without waiting for the chat: `verify:deploy`, CI, and the Production `e2e-prod` run, 234 of 234 expected, with S1's `[search cache]` lines; and the served sheet holding the new declaration. This commit comes before that run, so the next block records it.
+- **The lesson:** a header assertion holds only for the host it was read on, and a CDN rewrites `Cache-Control`. Before a push, read a Preview's or prod's headers against every assertion that only the Production crawl runs.
+- **Also notes now run through HO 821.**
