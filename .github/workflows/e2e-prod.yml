@@ -306,8 +306,17 @@ jobs:
         # Named by path like the others, never by an e2e/ glob.
         run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts e2e/narrow.spec.ts e2e/touch.spec.ts --grep-invert "@nonci" --retries=2
 
-      - name: Upload report on failure
-        if: failure()
+      # HO 822 — KEYED ON THE TRACES EXISTING, like the #418 step below, and for
+      # its reason: `--retries=2` concludes `success` when a retry passes, so
+      # under `if: failure()` a test that failed and then passed took its traces
+      # with the runner. e2e-prod 44164447529 (HO 821's follow-up FF) lost both
+      # failed attempts of the `.bxp` test that way. `trace: "retain-on-failure"`
+      # leaves a `trace.zip` under test-results/ for every failed attempt, and the
+      # HTML report carries it, so the report uploads on a failure and on any run
+      # that left one. `failure() ||` keeps every red uploading as before, one that
+      # left no trace included.
+      - name: Upload report when a test failed or retried
+        if: failure() || (always() && hashFiles('test-results/**/trace.zip') != '')
         uses: actions/upload-artifact@v5
         with:
           name: playwright-report
