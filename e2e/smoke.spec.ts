@@ -924,6 +924,57 @@ test.describe("gate / deep-link param drop", () => {
   });
 });
 
+// ── HO 822: wait for React before clicking a server-rendered control ─────────
+//
+// WHY: a feed row is a server-rendered `div role="button"`, and the feed tabs are
+// server-rendered `<button>`s, so their clicks are React's to handle. Before
+// `hydrateRoot` runs nothing listens. After it, Next's React meets a click on a
+// dehydrated root by trying one synchronous hydration; if the root is still
+// blocked, it stops the event and never replays it
+// (next/dist/compiled/react-dom/cjs/react-dom-client.production.js:17693-17740,
+// 19.3.0-canary). A test that clicks right after DOMContentLoaded races that, and
+// e2e-prod 44164447529's `.bxp` test lost two attempts to it (the likely cause;
+// the run kept no trace). So these tests poll the element they're about to click
+// until it carries a key starting `__reactProps$`, for up to 10 s, and then click.
+// React writes that key on an element when it hydrates it, and reads the
+// element's handlers from it when an event comes. No key in 10 s is a real red,
+// not a flake.
+//
+// THE KEY IS REACT-INTERNAL. It has read `__reactProps$` since React 17 (16
+// called it `__reactEventHandlers$`). If an upgrade renames it, the wait fails
+// loudly at 10 s, so it can't pass silently.
+//
+// THE READING, one line a test: `[hydrate] <test>: <ms> after DCL`, the
+// performance.now() at which the key was first seen, less the navigation entry's
+// domContentLoadedEventEnd. That's the window in which a visitor's click on `/`
+// does nothing, read on prod every run. "At the first look" means the key was
+// already there when the poll began, so the figure is an upper bound.
+async function waitForHydration(page: Page, selector: string, index: number, what: string, name: string) {
+  const look = (arg: { selector: string; index: number }) => {
+    const el = document.querySelectorAll(arg.selector)[arg.index];
+    return el && Object.keys(el).some((k) => k.startsWith("__reactProps$")) ? performance.now() : 0;
+  };
+  const arg = { selector, index };
+  const first = await page.evaluate(look, arg);
+  const seen =
+    first ||
+    (await page
+      .waitForFunction(look, arg, { timeout: 10_000 })
+      .then((h) => h.jsonValue())
+      .catch(() => 0));
+  const dcl = await page.evaluate(() => {
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    return nav?.domContentLoadedEventEnd ?? 0;
+  });
+  // eslint-disable-next-line no-console
+  console.log(
+    seen
+      ? `[hydrate] ${name}: ${Math.round(seen - dcl)}ms after DCL${first ? " (at the first look)" : ""}${dcl ? "" : " (DCL unread)"}`
+      : `[hydrate] ${name}: not hydrated in 10 s`,
+  );
+  expect(seen, `${what} never hydrated in 10 s`).toBeGreaterThan(0);
+}
+
 test.describe("targeted interactions", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
   test.beforeEach(async ({ context }) => {
@@ -939,6 +990,8 @@ test.describe("targeted interactions", () => {
     // aria-expanded flipping to "true", so this is the same contract.
     const firstRow = page.locator('.v2f [role="button"][aria-expanded]').first();
     await expect(firstRow, "home feed should have rows").toBeVisible({ timeout: 20_000 });
+    // HO 822: React first, or the click can be dropped (waitForHydration says why).
+    await waitForHydration(page, '.v2f [role="button"][aria-expanded]', 0, "the row", ".bxp row");
     await firstRow.click();
     await expect(
       page.locator(".v2f-group.open .bxp").first(),
@@ -952,6 +1005,10 @@ test.describe("targeted interactions", () => {
     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
     const tabs = page.locator('.breaking-stalls-tabs [role="tab"]');
     await expect(tabs).toHaveCount(3, { timeout: 20_000 });
+    // HO 822: React first, for the Top Stalls click below, or it can be dropped
+    // (waitForHydration says why). It waits here, as soon as the tabs are drawn,
+    // so its reading is as close to hydration as the poll can get.
+    await waitForHydration(page, '.breaking-stalls-tabs [role="tab"]', 2, "the Top Stalls tab", "feed tabs");
     await expect(tabs.nth(0)).toContainText("New This Week");
     await expect(tabs.nth(1)).toContainText("Movers");
     await expect(tabs.nth(2)).toContainText("Top Stalls");
@@ -1597,6 +1654,13 @@ test.describe("icon and manifest (HO 819)", () => {
 // sets nothing on, and it holds `public`, so a check on `public` alone would pass
 // it. `vercelCacheable` must reject it, inside S1, on every run.
 //
+// S3'S AMBER RUN (HO 822). Twice, `document.getAnimations()` holds no running
+// CSSAnimation named `ds-pull`: on the idle bar before typing, and once tax's list
+// has drawn and `.ds-pull` has lost `on` (no request out). ITS CONTROL is HO 822's
+// STEP 0 claim 6: on prod at 5829418, an idle `/` at 1280 held one on
+// `.ds-pull::before`, with `.ds-pull` not on, and the same read under reduced
+// motion held none.
+//
 // THE CONTROL: claim 11, on prod at 601f90e, 2026-11-16 7:26 PM MST, read every
 // reading red. Both routes answered 404 with Next's HTML page (`public,
 // max-age=0, must-revalidate`): no counts against /search's (tax 1,696 / 0 / 52
@@ -1618,6 +1682,23 @@ function vercelCacheable(cc: string): boolean {
   const d = cc.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
   return d.includes("public") && !d.some((x) => UNCACHEABLE.includes(x));
 }
+// HO 822: the running `ds-pull` animations, with whether `.ds-pull` was on and
+// what each animation read, for the message.
+const readPull = (page: Page) =>
+  page.evaluate(() => {
+    const running = document
+      .getAnimations()
+      .filter((a): a is CSSAnimation => a instanceof CSSAnimation && a.animationName === "ds-pull" && a.playState === "running");
+    return {
+      running: running.length,
+      on: document.querySelector(".ds-pull")?.classList.contains("on") ?? null,
+      read: running
+        .map((a) => `${(a.effect as KeyframeEffect | null)?.pseudoElement ?? "(element)"} at ${Math.round(Number(a.currentTime ?? 0))}ms`)
+        .join(", "),
+    };
+  });
+const pullSaid = (p: { running: number; on: boolean | null; read: string }) =>
+  `${p.running} (.ds-pull ${p.on === null ? "missing" : p.on ? "on" : "not on"}${p.read ? `; ${p.read}` : ""})`;
 
 test.describe("dashboard search (HO 821)", () => {
   test.use({ storageState: { cookies: [], origins: [] }, viewport: { width: 1440, height: 900 } });
@@ -1817,6 +1898,9 @@ test.describe("dashboard search (HO 821)", () => {
       expect.soft(boxes.input.t < boxes.panel.t, `S3: the bar's top ${boxes.input.t} is above the first panel's ${boxes.panel.t}`).toBe(true);
       expect.soft(Math.abs(boxes.input.w - boxes.left.w), `S3: the bar ${boxes.input.w} wide, .dash-left ${boxes.left.w}`).toBeLessThanOrEqual(1);
     }
+    // HO 822: the amber run on the idle bar, before typing.
+    const pullIdle = await readPull(page);
+    let pullAfter: Awaited<ReturnType<typeof readPull>> | null = null;
     const input = page.locator('.ds input[type="search"]').first();
     let s3 = { slash: false, options: 0, groups: 0, maxGroup: 0,expanded: null as string | null, cardGap: null as number | null, href: "", pick: "", reloadTitle: "", cleared: false, firstTitle: "" };
     if (boxes.inputs === 1) {
@@ -1825,6 +1909,9 @@ test.describe("dashboard search (HO 821)", () => {
       s3.slash = await input.evaluate((el) => el === document.activeElement);
       await page.keyboard.type("tax", { delay: 60 });
       await page.locator('.ds-drop [role="option"]').first().waitFor({ state: "visible", timeout: 5_000 }).catch(() => {});
+      // HO 822: the second moment, tax's list drawn and no request out.
+      await page.waitForFunction(() => !document.querySelector(".ds-pull.on"), null, { timeout: 5_000 }).catch(() => {});
+      pullAfter = await readPull(page);
       const drop = await page.evaluate(() => {
         const groups = Array.from(document.querySelectorAll(".ds-drop [role='group']"));
         return {
@@ -1876,12 +1963,20 @@ test.describe("dashboard search (HO 821)", () => {
     expect.soft(s3.pick, "S3: the URL's pick").toBe(`bill:${s3.href.replace(/^\/bill\//, "")}`);
     expect.soft(s3.reloadTitle, "S3: after a reload the card is back with the same title").toBe(s3.firstTitle || "(no card title read)");
     expect.soft(s3.cleared, "S3: ✕ on the card clears it and the pick").toBe(true);
+    expect.soft(pullIdle.running, `S3: running ds-pull animations on the idle bar, before typing: ${pullSaid(pullIdle)}`).toBe(0);
+    expect
+      .soft(
+        pullAfter?.running ?? null,
+        `S3: running ds-pull animations once tax's list drew, no request out: ${pullAfter ? pullSaid(pullAfter) : "not read (no bar)"}`,
+      )
+      .toBe(0);
 
     // eslint-disable-next-line no-console
     console.log(
       `[search] ${logParts.join(" | ")} | card-title=${JSON.stringify(cardTitle)}` +
         ` | S3 inputs=${boxes.inputs} input=${JSON.stringify(boxes.input)} header-bottom=${boxes.header?.b ?? "none"} panel-top=${boxes.panel?.t ?? "none"} left-w=${boxes.left?.w ?? "none"}` +
-        ` slash=${s3.slash} options=${s3.options} groups=${s3.groups} max-group=${s3.maxGroup} expanded=${s3.expanded} gap=${s3.cardGap} pick=${s3.pick || "none"} reload=${JSON.stringify(s3.reloadTitle)} cleared=${s3.cleared}`,
+        ` slash=${s3.slash} options=${s3.options} groups=${s3.groups} max-group=${s3.maxGroup} expanded=${s3.expanded} gap=${s3.cardGap} pick=${s3.pick || "none"} reload=${JSON.stringify(s3.reloadTitle)} cleared=${s3.cleared}` +
+        ` pull-idle=${pullIdle.running} pull-after=${pullAfter?.running ?? "unread"}`,
     );
   });
 });
