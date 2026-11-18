@@ -3604,3 +3604,36 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Owed at this FF,** which runs without waiting for the chat: `verify:deploy`, CI, and the Production `e2e-prod` run, 234 of 234 expected, with S1's `[search cache]` lines; and the served sheet holding the new declaration. This commit comes before that run, so the next block records it.
 - **The lesson:** a header assertion holds only for the host it was read on, and a CDN rewrites `Cache-Control`. Before a push, read a Preview's or prod's headers against every assertion that only the Production crawl runs.
 - **Also notes now run through HO 821.**
+
+**Also (HO 822), the search bar's amber run animates only while a request is in flight; the two smoke tests that click a hydrated control on `/` wait for React first and log how long it took; a flaky run keeps its traces.** Built on `822-review` from `5829418`, ruled in `822-idle-pull-and-flake.md`: a test, one CSS block, one workflow step, these docs and SKILL.
+
+- **HO 821's follow-up FF, as taken.** `main` went `35bc90f..5829418` at 12:58:30 PM MST Nov 17 with no force. Production record `7864617821`; prod served the tip from about 12:59:21 PM.
+  - The Production `e2e-prod` run `44164447529` concluded `success`: 234, one of them flaky (below). The crawl step took 9m57s and the job 10m50s, past 10 minutes and flagged; the cap stays at 20.
+  - S1's two lines took the Vercel branch: `tax: branch=vercel cc="public" x-vercel-cache=MISS repeat=HIT 24ms control=rejected`, and `shutdown` the same in 19 ms.
+- **Why** (Code's read-only look, `821-artifacts/flaky-bxp/bxp-821.md`):
+  - the flaky test, *expand a bill row → … (.bxp) opens*, clicks a feed row right after DOMContentLoaded, and Next's React drops a click that lands before it can hydrate the row, and never replays it (oddities);
+  - no trace survived: the report upload ran `if: failure()`;
+  - HO 821's amber run animated `left` from first paint wherever the bar drew, at opacity 0: prod's idle `/` at 1280 ran 181 layouts in 3 s, and 4 with only the run paused.
+- **STEP 0 held** (`822-artifacts/step0-822.md`). Claim 6, on prod at `5829418`: an idle `/` at 1280 held one running `ds-pull` animation on `.ds-pull::before`, `.ds-pull` not on, and none under reduced motion. Two anchor ranges were corrected, nothing resting on them: the `.bxp` test was `:934-947` and the feed-tabs test `:951-981`.
+- **§ 1, the gate (`test`).** S3 reads no running `ds-pull` animation twice: on the idle bar, and once tax's list has drawn with no request out. The `.bxp` and feed-tabs tests poll the element they click for React's `__reactProps$` key, for up to 10 s, then click, and log `[hydrate] <test>: <ms> after DCL`.
+- **§ 2, the run (`fix`).** The animation lives on `.ds-pull.on::before`, on `transform` (`translateX(-100%)` to `translateX(333.34%)`, the same path). Reduced motion draws it full width and still.
+- **§ 3, the traces (`ci`).** The step is now *Upload report when a test failed or retried*, `if: failure() || (always() && hashFiles('test-results/**/trace.zip') != '')`.
+- **The legs,** on local builds:
+  - **A:** S3 read 1 and 1 on the test commit's build, and 0 and 0 on the fix's.
+  - **B:** with the suggest route delayed 3 s (a plant, reverted), `.ds-pull` was on and one `ds-pull` ran through the whole flight, then none. Under reduced motion none ran at any of 73 reads, and the run was the bar's full width.
+  - **C:** five runs of each test, all green. Every `[hydrate]` line read *at the first look*, 124 to 183 ms after DCL.
+  - **D:** no actionlint on the box. The parsed workflow differs from `5829418` in that one step, and its `always() && hashFiles('…') != ''` matches the #418 step's character for character.
+- **The flags:**
+  - `failure() ||` goes beyond the #418 form, so a red with no trace still uploads.
+  - Leg C's readings are upper bounds: locally React hydrated before the first poll. On prod a line is exact only when hydration is slower than that.
+  - The backlog line says *that one synchronous hydration can't unblock*: the vendored code dispatches the click when that hydration succeeds (`:17728-17735`).
+  - SKILL's *the marquee is the one deliberate exception to the dashboard's cursor-blink-only motion rule* was false before this HO (`betafade` runs on idle `/` too). Flagged, not edited.
+  - *Why* 3's *phones included* doesn't hold under 700px: there `.ds` is `display: none` until the ⌕, so the run never started.
+  - React writes the key during hydration's render, before its commit (`:2950`). So the wait can still pass ahead of a click that's dropped, if something outside every Suspense boundary is still suspended. The review judged that theoretical.
+- **Owed at this FF,** which runs without waiting for the chat:
+  - `verify:deploy` and CI;
+  - the Production `e2e-prod` run: 234 expected, with S3's two readings, the `[hydrate]` lines and the times;
+  - the served sheet.
+
+  This commit comes before that run, so the next block records it.
+- **Also notes now run through HO 822.**
