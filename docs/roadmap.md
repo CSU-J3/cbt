@@ -3637,3 +3637,34 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 
   This commit comes before that run, so the next block records it.
 - **Also notes now run through HO 822.**
+
+**Also (HO 823), the stall count is bills only: TOP STALLS, `/stale` and `/welcome`'s Stalls panel read the four law-eligible types; the procedural filter and its toggle go with the resolutions they filtered; the stale order ends on a unique key.** Built on `823-review` from `66bd819`, ruled in `823-stalls-bills-only.md`: a test, a fix, these docs and SKILL.
+
+- **The Nov 17 read, as landed:** `66bd819`, FF `c926562..66bd819` at about 12:17 PM MST Nov 19, no force, docs only (four backlog lines).
+- **HO 822's FF, owed by its block:** `main` went `5829418..c926562` at 7:31:56 PM MST Nov 17, no force; Production record `7872400840`, served from about 7:33:02 PM. `e2e-prod` `44224087665`: `success`, 234 passed, none flaky; step 8m24s, job 9m05s. S3 read `pull-idle=0 pull-after=0`; `[hydrate]` 259 and 199 ms, both *at the first look*.
+- **The ruling.** Asked *"Which rule should the stall count use going forward?"*, Corey, 12:22 PM MST Nov 19, verbatim: **"Bills only (Recommended)"**. The chat's reading: "stalled" means a measure that could become law and hasn't moved, so every stale read takes `hr`, `s`, `hjres`, `sjres` under one predicate; no text match on *agreed to*; the procedural filter goes as a forced consequence, since every row it removes is a resolution.
+- **STEP 0 held** (`823-artifacts/step0-823.md`), on prod at `66bd819`:
+  - 6: the procedural filter matched 0 law-eligible rows; the control, with no type clause, 38 resolutions;
+  - 7: the badge's set read 959 = 802 bills + 157 resolutions (12:37 PM MST), equal to `getStaleBillsCount()`;
+  - 8: `/stale?stage=floor`'s 50 rows held 33 resolutions. A row carries its id only in its rail (`.rail-type`, `.rail-number`): it's a `div role="button"`, no `/bill/` link;
+  - 9: `latest_action_date ASC, id ASC` kept `idx_bills_latest_action` (a temp b-tree for the last term only), 33, 32, 34 ms against 34, 34, 34 (the comment's 43). Outcome 1 of 3 shipped.
+- **§ 1 (`test`).** smoke gains *`/stale` counts bills only (HO 823)*: every `/stale?stage=floor` row's rail reads a law-eligible type, and no rows fails. touch's `/stale` minimum is 1 checkbox. fit-finish clicks INCLUDE CEREMONIAL and expects it, with no count guard and no swallowing `catch`.
+- **§§ 2 and 3 (`fix`).** `buildStaleWhere` pushes `bill_type IN (${LAW_ELIGIBLE_BILL_TYPES})` after the date clauses; the procedural clause, `includeProcedural`, `sanitizeIncludeProcedural`, `STALE_ELIGIBLE_STAGES`, `lib/stale-procedural.ts`, `components/ProceduralToggle.tsx` and `scripts/diagnostic/stale-procedural-350.ts` go; both ORDER BYs end on `id ASC`. `/stale`'s header reads *bills past committee · no action in over 60 days · furthest first*, each phrase a `whitespace-nowrap` span (the HALT ruling); `?procedural=1` is an unknown param.
+- **The legs,** a local build of the fix reading prod, 12:49 to 12:56 PM MST (`52c48d6`; E re-taken on `fd3f2d0` at 1:30 PM):
+  - A: the new test red on prod, 33 of 50 not bills; green on the build, 50 rows, 0;
+  - B: the new count 802 = the old predicate with the four types, re-read in the run. Control: the old alone 959 = L + R. The new without its clause reads 983; the 24 over are resolutions (`hres` 21, one each of the rest), the procedural filter's rows;
+  - C: the badge 802 (House 597 + Senate 205); 0 resolutions in TOP STALLS' 60, `/stale`'s 50, `?stage=floor`'s 50 and `/welcome`'s 12; `?procedural=1` renders `/stale`'s rows;
+  - D: three uncached runs each, the same ids in the same order; row 60 sits in a tie of 3 (2 inside), row 50 in a tie of 7 (4 inside);
+  - E: one checkbox, and every box in the bar where base had it at 1440, 390 and 390 under touch. The first take failed at 390: the header broke mid-phrase (*…over 60* / *days…*), as it did at 320 to 400 and 520 of 16 widths. On the ruled `nowrap` spans it breaks only at a `·` at all 16: one line at 1440, two at 390, three at 320. Five captures in `823-artifacts/captures/`: 1440 and 390, default and reduced, and 320.
+- **The flags:**
+  - the line gave no Drive id, size or hash; the file was found by title in `Congressional-Terminal`, 18,114 bytes, sha256 `66e9c6f9…dd92`;
+  - three diagnostic scripts also call `getStaleBills` (`shape-check-670`, `welcome-mount-check-670`, `welcome-read-budget-670`): instruments, not counted as a fourth caller;
+  - claim 9's fallback reads `bills.rowid DESC`: a bare `rowid` is ambiguous in the joined statement. Unused;
+  - § 3's *four* `set("procedural", "1")` lines are three on the page; the fourth was the toggle's own;
+  - the smoke test asserts every row is a bill, not only that none is a resolution, so an empty rail fails too;
+  - SKILL's touch-controls bullet named `ProceduralToggle` as the second `ctl-check` label: corrected under HO 620's carve-out, then ratified;
+  - HO 822's FF bullet above was owed by its block, not named by the handoff, then ratified.
+- **The gates,** on `fd3f2d0`'s build as on `52c48d6`'s: every commit builds cold, tsc and the e2e tsc with `.next` cleared, `check:odds-sites`, `check:design-citations`; touch 48, narrow 120, fit-finish 2; smoke and odds-off 64 of 67. The three red are odds-off's `/electoral` tests, red on prod at `66bd819` (`44597145747`) and in every `e2e-prod` run since the scheduled `44412015377` (Nov 18, 231 passed, 3 failed). Filed in OPEN LOOPS, so the reconcile closes at 281 / 396 / 677.
+- **The HALT ruling** (the chat, 1:20 PM MST Nov 19, `823-halt-ruling.md`): the three phrases in `nowrap` spans, re-stacked into `fix`; the odds-off three *"ratified as pre-existing, not HO 823's"*, so the gate reads green but for them; the SKILL correction and HO 822's readings ratified; *"Do NOT fast-forward. The handoff's conditional FF is withdrawn: the chat reads the ref first and sends the FF go."* The tip's `narrow-preview` is owed at the review push.
+- **Oddities:** nothing odd emerged.
+- **Also notes now run through HO 823.**
