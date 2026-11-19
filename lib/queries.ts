@@ -87,11 +87,6 @@ import {
 import { NEWS_CONFIDENCE_FLOOR } from "./report-generation";
 import type { ChamberControl, KalshiOdds } from "./kalshi";
 import type { PolymarketOdds } from "./polymarket";
-import {
-  STALE_PROCEDURAL_BLOCKLIST,
-  STALE_PROCEDURAL_IDS,
-  STALE_PROCEDURAL_TITLE_PATTERN,
-} from "./stale-procedural";
 import { SEARCH_TABS, type SearchTab } from "./search-tabs";
 
 // HO 130: media-attention column. JOIN-at-read pattern reused across every
@@ -126,13 +121,6 @@ const SPONSOR_ENRICH_JOIN =
   "LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id";
 
 export const STALE_DAYS = 60;
-export const STALE_ELIGIBLE_STAGES = [
-  "introduced",
-  "committee",
-  "floor",
-  "other_chamber",
-  "other",
-] as const;
 export const STALE_FILTER_STAGES = [
   "introduced",
   "committee",
@@ -213,6 +201,10 @@ const CHAMBERS_SET = new Set<string>(CHAMBERS);
 
 const HOUSE_BILL_TYPES = "'hr','hjres','hconres','hres'";
 const SENATE_BILL_TYPES = "'s','sjres','sconres','sres'";
+// HO 823: the types that can become law. A simple or concurrent resolution
+// can't, and an adopted one stores at `floor` as finished business, so the
+// stale reads take these four only.
+const LAW_ELIGIBLE_BILL_TYPES = "'hr','s','hjres','sjres'";
 
 export type FeedFilters = {
   topics?: string[];
@@ -222,10 +214,6 @@ export type FeedFilters = {
   sort?: SortKey;
   chamber?: Chamber;
   includeCeremonial?: boolean;
-  // HO 350: /stale only — when true, the procedural-housekeeping rows
-  // (opening-week frozen IDs + the recurring "Electing Members…" family,
-  // minus the blocklist) are NOT filtered out. Off by default.
-  includeProcedural?: boolean;
   cluster?: string;
   // HO 151: set to "asc" when /bills?stage=president is the sole stage and
   // no explicit ?sort is provided — preserves the legacy /president
@@ -386,14 +374,6 @@ export function sanitizeCycle(raw: string | null | undefined): ElectoralCycle {
     : 2026;
 }
 
-// HO 350: /stale INCLUDE PROCEDURAL toggle. '1' → show the filtered
-// housekeeping rows; anything else → keep them hidden (the default).
-export function sanitizeIncludeProcedural(
-  raw: string | null | undefined,
-): boolean {
-  return raw === "1";
-}
-
 // HO 130: validates `?bill=` for the /news filter. Format is
 // `<congress>-<billtype>-<number>`, e.g. `119-hr-1234`. Lowercase normalized.
 // Invalid → undefined so the page falls back to the unfiltered view.
@@ -419,6 +399,19 @@ export function sanitizeClusterId(
 // staleness gate stays (subtitle: "STALLED 60+ DAYS"). Procedural housekeeping
 // is filtered unless includeProcedural — frozen IDs OR the recurring
 // "Electing Members…" title pattern, minus the blocklist.
+//
+// HO 823 — the stall count is bills only. Every stale read (the default group,
+// a picked stage, the TOP STALLS badge, /welcome's Stalls panel) takes the four
+// types that can become law, LAW_ELIGIBLE_BILL_TYPES. "Stalled" means a measure
+// that could become law and hasn't moved; a simple or concurrent resolution
+// can't, and an adopted one stores at `floor` as finished business (most of the
+// 157 resolutions in the Nov 17 read were). One clause, composed with the
+// chamber's, so no surface disagrees with another. The procedural filter above
+// is gone: every row it matched was a resolution (13 frozen ids, the "electing
+// members%" family, both blocklist ids), so under bills only it matched 0 on
+// prod at 66bd819 and INCLUDE PROCEDURAL changed no row. Deleted with it:
+// lib/stale-procedural.ts, components/ProceduralToggle.tsx and
+// scripts/diagnostic/stale-procedural-350.ts.
 function buildStaleWhere(filters: FeedFilters): {
   clauses: string[];
   args: (string | number)[];
@@ -426,24 +419,12 @@ function buildStaleWhere(filters: FeedFilters): {
   const { clauses, args } = buildFeedWhere(filters);
   clauses.push("latest_action_date IS NOT NULL");
   clauses.push(`latest_action_date < date('now', '-${STALE_DAYS} days')`);
+  clauses.push(`bill_type IN (${LAW_ELIGIBLE_BILL_TYPES})`);
 
   if (!filters.stage) {
     const placeholders = STALE_PAST_COMMITTEE_STAGES.map(() => "?").join(", ");
     clauses.push(`stage IN (${placeholders})`);
     for (const s of STALE_PAST_COMMITTEE_STAGES) args.push(s);
-  }
-
-  if (!filters.includeProcedural) {
-    const idPlaceholders = STALE_PROCEDURAL_IDS.map(() => "?").join(", ");
-    const blockPlaceholders = STALE_PROCEDURAL_BLOCKLIST.map(() => "?").join(
-      ", ",
-    );
-    clauses.push(
-      `NOT ((id IN (${idPlaceholders}) OR lower(title) LIKE ?) AND id NOT IN (${blockPlaceholders}))`,
-    );
-    for (const id of STALE_PROCEDURAL_IDS) args.push(id);
-    args.push(STALE_PROCEDURAL_TITLE_PATTERN);
-    for (const id of STALE_PROCEDURAL_BLOCKLIST) args.push(id);
   }
 
   return { clauses, args };
@@ -7273,7 +7254,9 @@ export type FeedCount = {
 // HO 807: the TOP STALLS badge's count, the set getStaleBills draws its rows
 // from, so the badge reads the set the way MOVERS and NEW THIS WEEK read theirs
 // (the tab still renders up to its 60-row ceiling). It takes the chamber only,
-// so the hint is always the one getStaleBills takes with no stage.
+// so the hint is always the one getStaleBills takes with no stage. HO 823: the
+// set is bills only (buildStaleWhere says why); on prod at 66bd819 it read 959,
+// 802 of them bills and 157 resolutions, so the badge reads 802 on that corpus.
 export const getStaleBillsCount = unstable_cache(
   async (chamber?: Chamber): Promise<number> => {
     const db = getDb();
@@ -7310,12 +7293,18 @@ export const getStaleBills = unstable_cache(
     //    (~1.6s). Forcing idx_bills_latest_action HERE was the HO 350-ship bug:
     //    it scanned the whole `latest_action_date < cutoff` range (~most of the
     //    corpus) into a temp b-tree — 73s, tripping the 10s abort → cold 500.
+    //
+    // HO 823: both orders end on `id ASC`, a unique key, so the last row on TOP
+    // STALLS and on /stale is fixed when it sits in a tie. The single-stage form
+    // still drives off idx_bills_latest_action, sorting only the last term
+    // (`USE TEMP B-TREE FOR LAST TERM OF ORDER BY`): committee, limit 50, read
+    // 33, 32, 34ms on prod at 66bd819, against 34, 34, 34ms for the old form.
     const singleStage = !!filters.stage;
     const fromHint = singleStage
       ? "idx_bills_latest_action"
       : "idx_bills_summary_stage";
     const orderBy = singleStage
-      ? "ORDER BY latest_action_date ASC"
+      ? "ORDER BY latest_action_date ASC, id ASC"
       : `ORDER BY
           CASE stage
             WHEN 'president' THEN 4
@@ -7324,7 +7313,7 @@ export const getStaleBills = unstable_cache(
             WHEN 'committee' THEN 1
             ELSE 0
           END DESC,
-          latest_action_date ASC`;
+          latest_action_date ASC, id ASC`;
 
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,

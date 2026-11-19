@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
-import { ProceduralToggle } from "@/components/ProceduralToggle";
 import {
   CHAMBER_SEGMENTS,
   SegmentedToggle,
@@ -19,7 +18,6 @@ import {
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
-  sanitizeIncludeProcedural,
   sanitizeStaleStage,
   sanitizeTopics,
   STALE_FILTER_STAGES,
@@ -31,7 +29,6 @@ type SearchParams = {
   q?: string;
   chamber?: string;
   ceremonial?: string;
-  procedural?: string;
   cluster?: string;
 };
 
@@ -49,7 +46,6 @@ export default async function StalePage({
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const chamber = sanitizeChamber(params.chamber);
   const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
-  const includeProcedural = sanitizeIncludeProcedural(params.procedural);
   const cluster = sanitizeClusterId(params.cluster);
   const hasFilters = topics.length > 0 || !!stage || !!chamber || !!cluster;
   const feedFilters = {
@@ -58,7 +54,6 @@ export default async function StalePage({
     q: q || undefined,
     chamber,
     includeCeremonial,
-    includeProcedural,
     cluster,
   };
 
@@ -68,7 +63,6 @@ export default async function StalePage({
   if (q) carry.set("q", q);
   if (chamber) carry.set("chamber", chamber);
   if (includeCeremonial) carry.set("ceremonial", "1");
-  if (includeProcedural) carry.set("procedural", "1");
   if (cluster) carry.set("cluster", cluster);
 
   const [bills, committeeCount, watchedIds] = await Promise.all([
@@ -81,7 +75,6 @@ export default async function StalePage({
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
   if (stage) clearSearchParams.set("stage", stage);
   if (includeCeremonial) clearSearchParams.set("ceremonial", "1");
-  if (includeProcedural) clearSearchParams.set("procedural", "1");
   if (cluster) clearSearchParams.set("cluster", cluster);
   const clearSearchHref = clearSearchParams.toString()
     ? `/stale?${clearSearchParams.toString()}`
@@ -97,7 +90,13 @@ export default async function StalePage({
           className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
-          past committee · stalled 60+ days · furthest first
+          {/* HO 823: each phrase is unbreakable, so the line wraps only at a
+              `·`. As plain text it broke mid-phrase at 320 to 400 and at 520. */}
+          <span className="whitespace-nowrap">bills past committee</span>
+          {" · "}
+          <span className="whitespace-nowrap">no action in over 60 days</span>
+          {" · "}
+          <span className="whitespace-nowrap">furthest first</span>
         </p>
         <p
           className="mb-3 text-[length:var(--fs-12)]"
@@ -161,14 +160,12 @@ export default async function StalePage({
             <SearchBox basePath="/stale" compact />
           </div>
           <CeremonialToggle checked={includeCeremonial} />
-          <ProceduralToggle checked={includeProcedural} />
           {hasFilters ? (
             <Link
               href={(() => {
                 const sp = new URLSearchParams();
                 if (q) sp.set("q", q);
                 if (includeCeremonial) sp.set("ceremonial", "1");
-                if (includeProcedural) sp.set("procedural", "1");
                 if (cluster) sp.set("cluster", cluster);
                 const qs = sp.toString();
                 return qs ? `/stale?${qs}` : "/stale";

@@ -31,6 +31,8 @@ import { type Chamber, getStaleBills } from "@/lib/queries";
 // HO 807: the set had grown to 891 rows by Nov 7, 2026, so the tab renders its
 // 60-row ceiling, and the badge (getStaleBillsCount) reads the whole set; the
 // [ View all stale → ] foot reaches the rest.
+// HO 823: the set is bills only, the four types that can become law; it read
+// 959 on prod at 66bd819, 802 bills and 157 resolutions, so 802 under the rule.
 const ROW_LIMIT = 60;
 
 export async function TopStalls({
