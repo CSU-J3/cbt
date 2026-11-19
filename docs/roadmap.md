@@ -3668,3 +3668,28 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **The HALT ruling** (the chat, 1:20 PM MST Nov 19, `823-halt-ruling.md`): the three phrases in `nowrap` spans, re-stacked into `fix`; the odds-off three *"ratified as pre-existing, not HO 823's"*, so the gate reads green but for them; the SKILL correction and HO 822's readings ratified; *"Do NOT fast-forward. The handoff's conditional FF is withdrawn: the chat reads the ref first and sends the FF go."* The tip's `narrow-preview` is owed at the review push.
 - **Oddities:** nothing odd emerged.
 - **Also notes now run through HO 823.**
+
+**Also (HO 824): why no `/electoral` row opens with a Kalshi line, read on prod. Every Senate row is called, and the helper walks only the Senate tab. Diagnostic only, nothing built.** Built on `218c592`, on `824-review`.
+
+- **HO 823's FF, owed by its block:**
+  - `main` went `66bd819..218c592` at about 3:38 PM MST Nov 19, no force. Production record `7927769997`, served from about 3:38:40 PM.
+  - `e2e-prod` `44630542152`: 235 tests, 232 passed, 3 failed (the ratified odds-off three). Step 9m11s, job 9m59s.
+  - The TOP STALLS badge read 802 on three reads a minute apart, 3:41:39 to 3:43:39 PM, with no resolution in `/stale`, `?stage=floor`, TOP STALLS or `/welcome`. `[stale-bills-only] rows=50 resolutions=0 not-bills=0`.
+- **STEP 0 held** (`824-artifacts/step0-824.md`). `RaceListView.tsx:258-272` reads `:259-274`, corrected.
+- **The reads,** in one run of `scripts/diagnostic/electoral-kalshi-824.ts` at 4:41 PM MST Nov 19. A guard let only reads through to the database (34 statements); prod's pages were read by GET.
+  - **A, B:** the list as `app/electoral/page.tsx:98-131` builds it. Senate has 14 rows, all called. House has 91, with 89 called, and only House 39 (`MN-01-2026`) and 82 (`NY-01-2026`) render a line. Senate is the default tab and the only one the helper walks.
+  - **C:** `kalshi_odds` holds 469 rows. 465 `close_time`s are Kalshi's scheduled 2027-11-03, and 4 are past, none of them a LIST row. The cron's runs all succeeded, writing the 6 seats the open-events feed still returns. It never deletes, so 463 rows keep the feed's last price.
+  - **D:** `S-AK-2026` is the one row the evidence shows losing its line. The green run (`44224087665`) opened it with a line at 7:37 PM MST Nov 17. By inference from the read queue, its call was first stored by a ballot read between about 1:20 and 3:24 PM MST Nov 18, before the red run at 3:29 PM. The store keeps a race's last read only, and rows 2 to 13 were also read in the window. Kalshi's feed went from 8 seats to 7 between the 7:15 and 9:15 PM ticks on Nov 17.
+  - **E:** on prod, MN-01 opens with its line. The helper's 13 rows read `won`, none with a line, and the 14 ◆ cells are visible with 0 inked.
+  - **F:** `KalshiLine` renders on MN-01 and NY-01 in the open row, the map card and the district card. `/`'s six K/P lines sit behind the races box's closed RACES tab at load; opened, they show called seats' last prices, because `RaceCard` reads no result. `/race/AL-01-2026` has no market site.
+  - **G:** 2 uncalled rows have active odds. NY-01's market left the feed after Nov 5, and the row shows that day's price. No row is a runoff.
+- **The cause:** 1, stronger than stated. The first 13 are called because all 14 Senate rows are, and the live rows are on the tab the helper never opens. Neither 2 nor 3.
+- **The proposal,** the probe's table, for the chat's ruling:
+  - 1: the helper skips `won` rows and tries the House tab, for a runway of two seats;
+  - 2: the fixture seam carries a live-market row on `narrow-preview`, and prod keeps site 10. **Recommended:** the only one whose tests read the same after the last market goes;
+  - 3: a market that has left the feed reads as closed. A product rule, covering NY-01 and `/`'s six;
+  - 4: tag the three `@nonci`.
+- **Checked before the commits** by four independent reads (the cause, the remedies, the script, the numbers). All 22 points were corrected, and the final run was re-taken.
+- **The backlog** line on the odds-off three carries the cause and the pointer. It stays open, and its close is unchanged. The reconcile read 281 / 396 / 677 at open and at close.
+- **Oddities:** one entry, *The crawl's Kalshi anchor ran out with Alaska's Senate call…*.
+- **Also notes now run through HO 824.**

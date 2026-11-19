@@ -201,3 +201,13 @@ On Chrome for Android, a page in element full screen leaves it when the reader d
 - **What the tests do now:** the two that click a hydrated control on `/` (the `.bxp` row and the Top Stalls tab) poll the element for React's `__reactProps$` key before the click, for up to 10 s. Each logs `[hydrate] <test>: <ms> after DCL`.
 
 **The rule:** a test that clicks a server-rendered control waits for React first. `domcontentloaded` means the HTML is parsed, not that anything listens.
+
+## The crawl's Kalshi anchor ran out with Alaska's Senate call, and no close time said so (HO 824, Nov 2026)
+
+odds-off's `/electoral` tests open LIST rows until one shows a Kalshi line. The line hides on a called seat (R6, HO 767), and the helper walks only the default Senate tab.
+- **The last line the crawl opened:** from election night the Senate rows were called one by one. The green run `44224087665` opened `S-AK-2026` with a line at 7:37 PM MST Nov 17.
+- **When the call landed:** by the arithmetic of the ballot read queue, Ballotpedia's mark reached CT's store on the next day's read, between about 1:20 and 3:24 PM MST Nov 18. The scheduled run at 3:29 PM found no line in its 13 rows, and every run since has been red on the same three tests.
+- **Why nobody wrote the date down:** the store keeps only each race's last read, so the date is inferred, not recorded (`docs/probes/824-electoral-kalshi.md`, D). It can't even say that S-AK's was the last Senate call: rows 2 to 13 were read in the same window.
+- **The market's close time didn't say it either.** On 465 of 469 rows Kalshi's `close_time` is the scheduled 2027-11-03. A market that leaves the open feed keeps its row at its last price: `S-AK-2026`'s since 7:15 PM MST Nov 17, and NY-01's since Nov 5. So `kalshiActive` reads every one of them active.
+
+**The rule:** a test whose precondition is live data says when that data runs out, and the store's close time isn't that day. Anchor a standing gate on something the tree controls, such as a fixture, or write the day the anchor ends where the next reader will see it.
