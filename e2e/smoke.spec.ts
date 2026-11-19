@@ -1037,6 +1037,35 @@ test.describe("targeted interactions", () => {
     await expect(tabs.nth(1)).toHaveAttribute("aria-current", "page", { timeout: 20_000 });
   });
 
+  // HO 823: the stall count is bills only, the four types that can become law.
+  // The floor group is where adopted simple and concurrent resolutions sat as
+  // finished business (33 of /stale?stage=floor's 50 rows on prod at 66bd819).
+  // A /stale row is an expandable div role=button with no /bill/ link, so its id
+  // is its rail: the type and the number. Every row must read a law-eligible
+  // type, which also fails a rail that reads empty. No rows fails too: the floor
+  // group isn't empty, so zero rows is a broken read, not a pass.
+  test("/stale counts bills only (HO 823)", async ({ page }) => {
+    await page.goto("/stale?stage=floor", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const rows = page.locator("li.feed-row");
+    await expect(rows.first(), "/stale?stage=floor should have rows").toBeVisible({ timeout: 20_000 });
+    const ids = await rows.evaluateAll((els) =>
+      els.map((li) => {
+        const type = (li.querySelector(".bill-rail .rail-type")?.textContent ?? "").trim().toLowerCase();
+        const num = (li.querySelector(".bill-rail .rail-number")?.textContent ?? "").trim();
+        return `${type}-${num}`;
+      }),
+    );
+    const notBills = ids.filter((id) => !/^(hr|s|hjres|sjres)-\d+$/.test(id));
+    const resolutions = ids.filter((id) => /^(hres|sres|hconres|sconres)-/.test(id));
+    // eslint-disable-next-line no-console
+    console.log(`[stale-bills-only] rows=${ids.length} resolutions=${resolutions.length} not-bills=${notBills.length}`);
+    expect(ids.length, "/stale?stage=floor rows read").toBeGreaterThan(0);
+    expect(
+      notBills,
+      `/stale?stage=floor holds ${notBills.length} of ${ids.length} rows that aren't bills: ${notBills.join(" ")}`,
+    ).toEqual([]);
+  });
+
   test("open a race district drawer → .rdm-panel opens and stays within viewport", async ({
     page,
   }) => {

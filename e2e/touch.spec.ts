@@ -270,11 +270,13 @@ const SELECT_TALL = 40;
 const SLOP_PX = 4;
 const INSET_PX = 2;
 // The minimums a slug, so a bar where the probe found nothing can't pass. The
-// counts are what each bar renders at HO 816 with no filters set.
+// counts are what each bar renders at HO 816 with no filters set. HO 823:
+// /stale's bar holds one checkbox, INCLUDE CEREMONIAL; INCLUDE PROCEDURAL went
+// with the resolutions it filtered, when the stall count became bills only.
 const BAR_MINIMUMS: Record<string, { segments: number; checks: number; selects: number }> = {
   bills: { segments: 3, checks: 1, selects: 2 },
   members: { segments: 6, checks: 1, selects: 2 },
-  stale: { segments: 3, checks: 2, selects: 1 },
+  stale: { segments: 3, checks: 1, selects: 1 },
   changes: { segments: 3, checks: 1, selects: 0 },
   lobbying: { segments: 2, checks: 0, selects: 0 },
 };

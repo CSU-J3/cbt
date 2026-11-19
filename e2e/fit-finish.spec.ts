@@ -882,12 +882,17 @@ test.describe("members /members", () => {
 // Lighter surfaces (console + one interaction each)
 // ─────────────────────────────────────────────────────────────────────────────
 test.describe("lighter surfaces", () => {
-  test("/stale + INCLUDE PROCEDURAL toggle", async ({ page }) => {
+  test("/stale + INCLUDE CEREMONIAL toggle", async ({ page }) => {
     const c = attachCollectors(page);
     await page.goto("/stale", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
-    const toggle = page.getByText(/procedural/i).first();
-    if (await toggle.count()) await toggle.click().catch(() => {});
+    // HO 823: INCLUDE CEREMONIAL is /stale's one toggle (INCLUDE PROCEDURAL went
+    // with the resolutions it filtered). The toggle must be there and the click
+    // must land: a guard that skipped the click, or a catch that swallowed it,
+    // let this pass on a page with no toggle.
+    const toggle = page.getByText(/include ceremonial/i).first();
+    await expect(toggle, "/stale's INCLUDE CEREMONIAL toggle").toBeVisible({ timeout: 15_000 });
+    await toggle.click();
     await page.waitForTimeout(500);
     logClean("stale", c);
     assertClean(c, "/stale");
