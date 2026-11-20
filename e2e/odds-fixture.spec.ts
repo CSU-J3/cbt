@@ -31,17 +31,40 @@
 // WHAT PRODUCTION GIVES UP: it no longer asserts site 12 on /electoral (the ◆
 // cells, site 10, are still asserted there by odds-off.spec.ts). A regression
 // in the line lands at review, where this file asserts it before the FF.
+//
+// HO 826 — `/?fixture=max`, `/`'s K/P line (site 3) on three fixture cards. A
+// called seat's card and a card whose price the sync hasn't written in 24 hours
+// now carry no odds: the index rows are stripped on the server before
+// `/`'s cards render (lib/electoral-rows.ts, withoutStaleOdds and
+// withoutCalledOdds), and a card with no price on either venue draws no K/P
+// line. So Production's `/` can go a whole season with no price on any card,
+// and the line is asserted on fixture cards, as site 12 is. The fixture
+// (`featuredWithMarketCases`) gives the three featured Senate seats one case
+// each, and the shipped rules decide what each draws:
+//   - `live`: not called, both venues written now: the line renders;
+//   - `called`: in the called set: the rule takes both prices;
+//   - `stale`: not called, both venues written 25 hours ago: the rule takes
+//     both prices.
+// Each card carries `data-fixture-case`, not `data-fixture`: the narrow gate
+// counts `[data-fixture]` on this route and holds it at 2. Set, four tests here
+// (the markers, ON at 1440, OFF at 1440 and 430); unset, one, which reds if a
+// fixture card renders.
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
 const BASE_URL =
   process.env.BASE_URL ?? "https://congressional-terminal-chi-silk.vercel.app";
 const GATE_COOKIE = { name: "ct_seen", value: "1", url: BASE_URL };
 const PATH = "/electoral?fixture=max";
+const HOME_PATH = "/?fixture=max";
 
 // The fixture's favorite, as the line prints it (`surname("Fixture")`), and its
 // percentage. Case-sensitive on purpose: no real Kalshi label reads "Fixture".
+// HO 826: the `/` cards' Polymarket constant names the same favorite (58%), so
+// the K/P line prints the name once, on its K half.
 const FAVORITE = "Fixture";
 const LINE_TEXT = /Fixture\s+61%/;
+const KP_TEXT = /Fixture\s*61%/;
+const CASES = ["called", "live", "stale"] as const;
 
 // narrow.spec.ts's idiom, copied: `||` not `??`, because the workflow passes the
 // env through bare and on a trigger that sets nothing it arrives as the EMPTY
@@ -60,10 +83,27 @@ type Viewport = { w: number; h: number; tag: string };
 const DESKTOP: Viewport = { w: 1440, h: 1200, tag: "1440" };
 const PHONE: Viewport = { w: 430, h: 932, tag: "430" };
 
-async function load(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}${PATH}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+async function load(page: Page, path: string = PATH): Promise<void> {
+  await page.goto(`${BASE_URL}${path}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForLoadState("load").catch(() => {});
   await page.waitForTimeout(2_500);
+}
+
+// HO 826: `/`'s race cards sit in the races box's RACES panel, `display: none`
+// until that tab opens (the box opens on Hearings). Opened as odds-off.spec.ts's
+// ON control opened it: the click is retried until the tab reports itself
+// current, so a click that lands before hydration can't read a shut panel. Then
+// the cards must have rendered before an absence means anything.
+async function openRaces(page: Page): Promise<void> {
+  const racesTab = page.locator(".dv2-racesbox-tab", { hasText: "Races" }).first();
+  await expect(async () => {
+    if ((await racesTab.getAttribute("aria-current")) !== "page") await racesTab.click();
+    await expect(racesTab).toHaveAttribute("aria-current", "page", { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  expect(
+    await page.locator("a.race-card:visible").count(),
+    `${HOME_PATH} drew no race card with RACES open — the page under test isn't /'s races panel, so no reading here means anything`,
+  ).toBeGreaterThan(0);
 }
 
 // The list must have rendered rows before an absence means anything: an SSO
@@ -191,6 +231,95 @@ if (ODDS_FIXTURES === "present") {
       });
     }
   });
+
+  test.describe("odds fixture on / — the Preview direction (ODDS_FIXTURES=1)", () => {
+    const card = (page: Page, c: (typeof CASES)[number]) => page.locator(`a.race-card[data-fixture-case="${c}"]`);
+
+    // 1. THE MARKERS, FIRST. On a build that carries the seam, their absence
+    // has one cause, the server's CBT_FIXTURES not reaching the build being
+    // read, and the message names it. A build without the seam reds here the
+    // same way, with the same message (HO 826's Leg A, marked 0 on its base).
+    test("markers — /?fixture=max carries three fixture cards, one per case", async ({ browser }) => {
+      const { page, close } = await newPage(browser, DESKTOP, false);
+      await load(page, HOME_PATH);
+      await openRaces(page);
+      const marked = await page
+        .locator("a.race-card[data-fixture-case]")
+        .evaluateAll((els) => els.map((e) => `${(e as HTMLElement).dataset.seat}=${(e as HTMLElement).dataset.fixtureCase}`));
+      console.log(`[odds-fixture home markers] marked=${marked.length} ${marked.join(" ")}`);
+      expect(
+        marked.length,
+        `${HOME_PATH} requested a fixture and drew ${marked.length} fixture cards, not 3 — the server's CBT_FIXTURES ` +
+          `didn't reach the build being read (Preview scope only). This is not a market regression`,
+      ).toBe(3);
+      expect(
+        marked.map((m) => m.split("=")[1]).sort(),
+        "one card for each case: live, called, stale",
+      ).toEqual([...CASES]);
+      await close();
+    });
+
+    // 2. ON, at 1440: the live card draws its line; the rules took the other two.
+    test("ON — the live card shows its K/P line, the called and stale cards show none @ 1440", async ({ browser }) => {
+      const { page, close } = await newPage(browser, DESKTOP, false);
+      await load(page, HOME_PATH);
+      expect(
+        await page.evaluate(() => document.documentElement.dataset.odds ?? null),
+        "no preference set means the attribute is ABSENT (the default is its absence)",
+      ).toBeNull();
+      await openRaces(page);
+      for (const c of CASES) await expect(card(page, c), `the ${c} card must exist (see the markers test)`).toHaveCount(1);
+      const line = card(page, "live").locator(".rc-kpline[data-market]");
+      await expect(line, "the live card carries one K/P line").toHaveCount(1);
+      await expect(line, "the line is visible with odds on").toBeVisible();
+      const text = (await line.innerText()).replace(/\s+/g, " ").trim();
+      const called = await card(page, "called").locator("[data-market]").count();
+      const stale = await card(page, "stale").locator("[data-market]").count();
+      console.log(
+        `[odds-fixture home ON@1440] live=${await card(page, "live").getAttribute("data-seat")} line="${text}" ` +
+          `calledMarkets=${called} staleMarkets=${stale}`,
+      );
+      expect(text, `the line holds the fixture's favorite, ${FAVORITE}`).toMatch(KP_TEXT);
+      expect(called, "a called seat's card carries no market element: the called rule took its prices").toBe(0);
+      expect(stale, "a card whose prices are 25 hours old carries no market element: the stale rule took them").toBe(0);
+      await close();
+    });
+
+    // 3. OFF, at 1440 and 430: the live card's line is in the DOM and hidden.
+    for (const vp of [DESKTOP, PHONE]) {
+      test(`OFF — the live card's K/P line is in the DOM and hidden @ ${vp.tag}`, async ({ browser }) => {
+        const { page, close } = await newPage(browser, vp, true);
+        await load(page, HOME_PATH);
+        expect(
+          await page.evaluate(() => document.documentElement.dataset.odds),
+          "the odds-off preference is applied (data-odds=off) before the cards are read",
+        ).toBe("off");
+        await openRaces(page);
+        await expect(card(page, "live"), "the live card must exist (see the markers test)").toHaveCount(1);
+        const inDom = await card(page, "live").locator(".rc-kpline[data-market]").count();
+        const visible = page.locator("[data-market]:visible");
+        const n = await visible.count();
+        if (n > 0) {
+          const names = await visible.evaluateAll((els) =>
+            els.slice(0, 8).map((e) => `${e.tagName.toLowerCase()}.${e.className}`),
+          );
+          console.log(`[odds-fixture home OFF@${vp.tag}] VISIBLE: ${names.join(" | ")}`);
+        }
+        const scroll = await page.evaluate(() => ({
+          s: document.documentElement.scrollWidth,
+          c: document.documentElement.clientWidth,
+        }));
+        console.log(`[odds-fixture home OFF@${vp.tag}] lineInDom=${inDom} visibleMarkers=${n} scroll=${scroll.s}/${scroll.c}`);
+        expect(inDom, "the line is in the DOM with odds off (the gate hides it, it doesn't unmount it)").toBe(1);
+        expect(n, "no market element may be visible with odds off").toBe(0);
+        expect(
+          scroll.s,
+          `doc must not scroll horizontally in the OFF state (${scroll.s}/${scroll.c})`,
+        ).toBeLessThanOrEqual(scroll.c);
+        await close();
+      });
+    }
+  });
 } else {
   test.describe("odds fixture — the Production direction (ODDS_FIXTURES unset)", () => {
     // The seam's control: dead where it must be. Green before HO 825's seam and
@@ -211,6 +340,23 @@ if (ODDS_FIXTURES === "present") {
         `${PATH} RENDERED A FIXTURE MARKER on a run that declared none — the server carries CBT_FIXTURES where it must not (Preview scope only)`,
       ).toBe(0);
       expect(anyFavorite, `no Kalshi line on the page may hold the fixture's favorite, ${FAVORITE}`).toBe(0);
+      await close();
+    });
+
+    // HO 826: the same control for `/`'s cards. Green before the seam and after.
+    test("Production — /?fixture=max renders no fixture card", async ({ browser }) => {
+      const { page, close } = await newPage(browser, DESKTOP, false);
+      await load(page, HOME_PATH);
+      await openRaces(page);
+      const markers = await page.locator("[data-fixture-case]").count();
+      const anyFavorite = await page.locator("a.race-card").filter({ hasText: new RegExp(FAVORITE) }).count();
+      const seats = await page.locator("a.race-card").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.seat));
+      console.log(`[odds-fixture home production] cards=${seats.join(",")} markers=${markers} favoriteCards=${anyFavorite}`);
+      expect(
+        markers,
+        `${HOME_PATH} RENDERED A FIXTURE CARD on a run that declared none — the server carries CBT_FIXTURES where it must not (Preview scope only)`,
+      ).toBe(0);
+      expect(anyFavorite, `no race card on the page may hold the fixture's favorite, ${FAVORITE}`).toBe(0);
       await close();
     });
   });

@@ -20,15 +20,25 @@
 // `scripts/diagnostic/odds-toggle-692.ts`, which intercepts the Blob.
 //
 // THE ON CONTROL IS WHAT MAKES A GREEN MEAN ANYTHING. If the marker were never
-// emitted, every OFF assertion would pass vacuously. So one test asserts the
-// marker IS visible with no preference set — anchored on `.rc-kpline`, NOT on
-// the tape, because BotID withholds the tape from headless Chrome on prod and
-// an anchor that can vanish for unrelated reasons is not a control. Site 12 on
-// /electoral (the open row's Kalshi line) is asserted on the Preview's fixture
-// row since HO 825, by e2e/odds-fixture.spec.ts, not here. This file used to
-// hunt the LIST for a row showing a line, and that went red on every Production
-// run once every Senate row was called (HO 824's probe); a fixture row is a
-// constant, so it can't run out.
+// emitted, every OFF assertion would pass vacuously. Site 12 on /electoral (the
+// open row's Kalshi line) is asserted on the Preview's fixture row since HO 825,
+// by e2e/odds-fixture.spec.ts, not here. This file used to hunt the LIST for a
+// row showing a line, and that went red on every Production run once every
+// Senate row was called (HO 824's probe); a fixture row is a constant, so it
+// can't run out.
+//
+// HO 826: `/`'s ON control left this file. It asserted a visible K/P line on
+// Production's `/`, anchored on `.rc-kpline` (not the tape, which BotID
+// withholds from headless Chrome on prod). Since HO 826 a called seat and a
+// price the sync hasn't written in 24 hours carry no odds, and a card with no
+// price draws no K/P line, so Production's `/` draws none while every featured
+// seat is called: the control would red because the rule works. The line is
+// vouched for on the Preview's `live` fixture card instead
+// (e2e/odds-fixture.spec.ts, `/?fixture=max`), as site 12 is. Two ON controls
+// stay here, /electoral's ◆ cells and the 2028 coverage line. `/`'s OFF cells
+// now open the RACES tab before they read, so the cards' sites are read with
+// odds off (they used to be read with the panel shut, where nothing is
+// visible either way).
 import { expect, type Page, test } from "@playwright/test";
 import { isKnownNoise } from "./console-noise";
 
@@ -45,9 +55,11 @@ const VIEWPORTS = [
   { w: 430, h: 932, tag: "430" },
 ] as const;
 
-type Route = { slug: string; path: string; gate: boolean; expand?: boolean };
+type Route = { slug: string; path: string; gate: boolean; expand?: boolean; races?: boolean };
 const ROUTES: Route[] = [
-  { slug: "home", path: "/", gate: true },
+  // HO 826 (825-ff-go.md, ruling 2): the race cards sit in the RACES panel,
+  // `display: none` until its tab opens, so the cells open it before they read.
+  { slug: "home", path: "/", gate: true, races: true },
   // HO 825: no row is opened here any more. The OFF pass reads the ◆ cell every
   // LIST row draws (site 10); the open row's Kalshi line (site 12) is read on
   // the Preview's fixture row by e2e/odds-fixture.spec.ts.
@@ -126,6 +138,22 @@ test.describe("odds OFF pass", () => {
             await page.waitForTimeout(1_500);
           }
         }
+        if (route.races) {
+          // Opened as odds-fixture.spec.ts opens it (and `/`'s ON control did,
+          // HO 825): the click is retried until the tab reports itself
+          // current, so a click that lands before hydration can't leave the
+          // panel shut. Then the cards must be on screen, or an
+          // OFF reading here would be the shut panel's, not the gate's.
+          const racesTab = page.locator(".dv2-racesbox-tab", { hasText: "Races" }).first();
+          await expect(async () => {
+            if ((await racesTab.getAttribute("aria-current")) !== "page") await racesTab.click();
+            await expect(racesTab).toHaveAttribute("aria-current", "page", { timeout: 2_000 });
+          }).toPass({ timeout: 20_000 });
+          expect(
+            await page.locator("a.race-card:visible").count(),
+            "the race cards must be on screen with RACES open",
+          ).toBeGreaterThan(0);
+        }
         // `:visible` in Playwright 1.61 means "non-empty bounding box and no
         // visibility:hidden" — so this single assertion covers BOTH hiding
         // mechanisms the gate uses, including `.race-list-diverge`, which keeps
@@ -180,46 +208,9 @@ test.describe("odds OFF pass", () => {
     }
   }
 
-  test("ON control — the marker is emitted, so a green OFF pass is not vacuous", async ({
-    browser,
-  }) => {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1200 } });
-    await context.addCookies([GATE_COOKIE]);
-    const page = await context.newPage();
-    await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await page.waitForLoadState("load").catch(() => {});
-    await page.waitForTimeout(2_500);
-
-    expect(
-      await page.evaluate(() => document.documentElement.dataset.odds ?? null),
-      "no preference set means the attribute is ABSENT (the default is its absence)",
-    ).toBeNull();
-
-    // Anchored on the K/P line rather than the tape: BotID withholds the tape
-    // from headless Chrome on prod, so a tape-anchored control would go red for
-    // a reason that has nothing to do with the marker.
-    //
-    // HO 825: the race cards sit in the races box's RACES panel, which is
-    // `display: none` until that tab opens (the box opens on Hearings), and the
-    // old DOM count (`.rc-kpline [data-market]`) passed with the panel closed,
-    // on a page showing no line at all. So the tab is opened first and the line
-    // is read on screen. The click is retried until the tab reports itself
-    // current, so a click that lands before hydration can't read a shut panel.
-    const racesTab = page.locator(".dv2-racesbox-tab", { hasText: "Races" }).first();
-    await expect(async () => {
-      if ((await racesTab.getAttribute("aria-current")) !== "page") await racesTab.click();
-      await expect(racesTab).toHaveAttribute("aria-current", "page", { timeout: 2_000 });
-    }).toPass({ timeout: 20_000 });
-    const n = await page.locator("[data-market]:visible").count();
-    const kp = await page.locator(".rc-kpline[data-market]:visible").count();
-    console.log(`[odds-off ON-control] visibleMarkers=${n} kpVisible=${kp}`);
-    expect(n, "markers must be visible in the ON state").toBeGreaterThan(0);
-    expect(kp, "a K/P line must be visible with RACES open (BotID-safe anchor)").toBeGreaterThan(0);
-    await context.close();
-  });
-
-  // HO 767: /electoral's own control. The `/` control above anchors on the
-  // dashboard's K/P line and cannot vouch for this route's sites. HO 825: this
+  // HO 767: /electoral's own control. A K/P-line control on `/` (this file's
+  // first, gone since HO 826; see the header) could never vouch for this
+  // route's sites. HO 825: this
   // control vouches for the ◆ cell on every LIST row (site 10, which keeps its
   // box), the one the OFF pass reads here; without it that pass would be green
   // even if the cell carried no `data-market`. The open row's Kalshi line (site
@@ -243,8 +234,8 @@ test.describe("odds OFF pass", () => {
     await context.close();
   });
 
-  // HO 718: the 2028 route's own control. The `/` control above cannot vouch
-  // for this route — its marker is a different site — so without this the OFF
+  // HO 718: the 2028 route's own control. No other control can vouch for this
+  // route — its marker is a different site — so without this the OFF
   // pass on /electoral?cycle=2028 would be green even if the coverage line
   // never carried `data-market` at all.
   test("ON control — the 2028 coverage line is emitted", async ({ browser }) => {
