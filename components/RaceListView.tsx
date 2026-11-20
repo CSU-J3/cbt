@@ -222,6 +222,7 @@ function RaceListRow({
   flash,
   onToggle,
   nowMs,
+  fixture,
   children,
 }: {
   row: ElectoralRow;
@@ -229,11 +230,19 @@ function RaceListRow({
   flash: boolean;
   onToggle: () => void;
   nowMs: number;
+  // HO 825: the Preview fixture's row carries HO 740's marker. Absent, not
+  // empty, on every other row (`data-fixture=""` would count as a marker).
+  fixture?: "max";
   children: React.ReactNode;
 }) {
   const diverges = !row.result?.called && kalshiDivergesFromConsensus(row.kalshiOdds, row.consensusScore, row.roster, nowMs);
   return (
-    <li className={`race-list-item${flash ? " rl-flash" : ""}`} id={`row-${row.raceId}`} data-race={row.raceId}>
+    <li
+      className={`race-list-item${flash ? " rl-flash" : ""}`}
+      id={`row-${row.raceId}`}
+      data-race={row.raceId}
+      data-fixture={fixture}
+    >
       <div
         role="button"
         tabIndex={0}
@@ -308,8 +317,12 @@ export function RaceListView({
   nowMs,
   passed,
   freshness,
+  fixtureRaceId,
 }: {
   rows: ElectoralRow[];
+  // HO 825: set only on a fixture render (`?fixture=max` on a server with
+  // `CBT_FIXTURES=1`), naming the row `electoralRowsWithLiveMarket` swapped.
+  fixtureRaceId?: string;
   raceNews: RaceNews;
   members: Record<string, MemberFacts>;
   pools: PalestinePools;
@@ -543,6 +556,7 @@ export function RaceListView({
                   flash={flashId === r.raceId}
                   onToggle={() => toggleRow(r.raceId)}
                   nowMs={nowMs}
+                  fixture={r.raceId === fixtureRaceId ? "max" : undefined}
                 >
                   <RaceOpenRow
                     row={r}

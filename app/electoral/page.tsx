@@ -28,6 +28,7 @@ import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { clockNowMs } from "@/lib/clock";
 import { buildElectoralRows, withoutCalledOdds } from "@/lib/electoral-rows";
+import { electoralRowsWithLiveMarket, fixtureRequested } from "@/lib/fixtures/max-content";
 import { daysToElection } from "@/lib/format";
 import { incumbentTagsAt, withIncumbentTags } from "@/lib/incumbent-tag";
 import { getUsMapGeometry } from "@/lib/us-map-geo";
@@ -85,11 +86,18 @@ function CycleToggle({ cycle }: { cycle: number }) {
 export default async function ElectoralPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cycle?: string }>;
+  searchParams: Promise<{ cycle?: string; fixture?: string }>;
 }) {
-  const cycle = sanitizeCycle((await searchParams).cycle);
+  const sp = await searchParams;
+  const cycle = sanitizeCycle(sp.cycle);
 
   if (cycle === 2028) return <SeatOutlookPage cycle={cycle} />;
+
+  // HO 825 — the fixture seam (HO 740's, `lib/fixtures/max-content.ts`). Dead
+  // unless the server carries `CBT_FIXTURES=1` (Preview scope only). On request,
+  // the LIST's rows carry one uncalled row with a live market, so
+  // e2e/odds-fixture.spec.ts can read the open row's Kalshi line on any day.
+  const fixture = fixtureRequested(sp);
 
   // HO 490: the page's one clock for the ages and the news and MOVED windows,
   // prop-drilled to the client rows, and since HO 768 to every client site that
@@ -129,6 +137,9 @@ export default async function ElectoralPage({
     passed ? getRaceResults(cycle) : Promise.resolve(null),
   ]);
   const { rows, raceNews } = buildElectoralRows({ cycle, index: races, general, moves, pacByRace, news, results, nowMs, clockMs });
+  // HO 825: the real reads above ran either way; one ternary swaps the LIST's
+  // rows. The map keeps the real rows (`withoutCalledOdds` below).
+  const list = fixture ? electoralRowsWithLiveMarket(rows, nowMs) : { rows, fixtureRaceId: null };
 
   // HO 210: cartogram cells reuse the EXACT getRacesIndex rows, so a state's
   // tile count === the number of rows the LIST shows for that state.
@@ -174,7 +185,10 @@ export default async function ElectoralPage({
           }
           listSlot={
             <RaceListView
-              rows={rows}
+              rows={list.rows}
+              // Spread only when set, so a page without the fixture serializes
+              // the same props it always has (no `fixtureRaceId` key at all).
+              {...(list.fixtureRaceId ? { fixtureRaceId: list.fixtureRaceId } : {})}
               raceNews={raceNews}
               members={members}
               pools={pools}

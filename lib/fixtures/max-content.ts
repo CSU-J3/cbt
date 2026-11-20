@@ -38,8 +38,10 @@
 //     gate needs a seam that is in the tree, and a search param on the product
 //     route that is dead unless the server env says otherwise is the smallest
 //     one.
+import type { ElectoralRow, RowResult } from "@/lib/electoral-rows";
 import type { EnactedBill } from "@/lib/enacted-this-week";
 import { watchState } from "@/lib/hearings";
+import type { KalshiOdds } from "@/lib/kalshi";
 import { hasRecordedVotes } from "@/lib/meeting-documents";
 import type {
   AbsenceWatch,
@@ -263,4 +265,73 @@ export function meetingsWithVotesMax(
     }
     return next;
   });
+}
+
+// ---------------------------------------------------------------------------
+// /electoral — one LIST row with a live market, for the open row's Kalshi line
+// ---------------------------------------------------------------------------
+
+// WHAT THE ROW IS FOR (HO 825). Site 12 (the open row's Kalshi line) renders
+// only on a seat that isn't called and has an active market (R6,
+// components/RaceOpenRow.tsx). HO 824's probe (docs/probes/824-electoral-
+// kalshi.md) read that by Nov 18 every Senate row was called and two House rows
+// were left with a line, so a test that hunts the day's list for a live market
+// runs out the day the last one is called. This row is a constant, so
+// e2e/odds-fixture.spec.ts reads the same line ON and OFF on any day.
+//
+// THE CONSTANT. No real market reads "Fixture", so the line it renders
+// ("KALSHI Fixture 61%") can't be mistaken for one. `closeTime: null` keeps
+// `kalshiActive` true at any clock. HO 826 (a price the sync hasn't refreshed in
+// 24 hours is treated as gone) will have to give this constant a fresh write
+// time, from `nowMs`, when that rule lands, or the fixture's line goes with it.
+const FIXTURE_KALSHI: Omit<KalshiOdds, "raceId"> = {
+  eventTicker: "FIXTURE-825",
+  impliedPct: 61,
+  favoriteLabel: "Fixture",
+  favoriteIsParty: false,
+  favoriteParty: null,
+  openInterest: null,
+  closeTime: null,
+};
+
+/**
+ * The real rows with one changed: the first Senate row in list order, copied,
+ * with the uncalled result shape (`lib/electoral-rows.ts`' `kind: "none"`
+ * branch) and the fixture's live market. Every other field is the real row's,
+ * and the id is a real `raceId`, so nothing downstream meets a seat that
+ * doesn't exist.
+ *
+ * `provenance` is `null`, not the real row's: a called row's line reads
+ * "Called by Ballotpedia", which would contradict the NO CALL chip, and an
+ * uncalled row's "No call on Ballotpedia · read …" names a read that never
+ * happened.
+ *
+ * Returns the fixture row's `raceId` so the page can mark it (`data-fixture`).
+ * The row is swapped and marked whenever there's a Senate row, so a rule added
+ * to `kalshiActive` later (HO 826's freshness) that the constant fails reds the
+ * spec's ON and OFF tests at the line, on a marked row, rather than the marker
+ * test. `nowMs` is unused today; it's taken so HO 826 can stamp the constant's
+ * write time without changing the call site. With no Senate row there's
+ * nothing to swap and the rows come back as they were.
+ */
+export function electoralRowsWithLiveMarket(
+  rows: ElectoralRow[],
+  nowMs: number,
+): { rows: ElectoralRow[]; fixtureRaceId: string | null } {
+  const at = rows.findIndex((r) => r.chamber === "senate");
+  if (at < 0) return { rows, fixtureRaceId: null };
+  const real = rows[at]!;
+  const kalshiOdds: KalshiOdds = { raceId: real.raceId, ...FIXTURE_KALSHI };
+  const result: RowResult = {
+    kind: "none",
+    chip: "NO CALL",
+    chipParty: null,
+    winnerKeys: [],
+    unnamed: null,
+    provenance: null,
+    called: false,
+  };
+  const next = rows.slice();
+  next[at] = { ...real, result, kalshiOdds };
+  return { rows: next, fixtureRaceId: real.raceId };
 }
