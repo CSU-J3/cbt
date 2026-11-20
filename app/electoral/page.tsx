@@ -27,7 +27,7 @@ import { SeatOutlookList } from "@/components/SeatOutlookList";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { clockNowMs } from "@/lib/clock";
-import { buildElectoralRows, withoutCalledOdds, withoutStaleOdds } from "@/lib/electoral-rows";
+import { buildElectoralRows, unlessStale, withoutCalledOdds, withoutStaleOdds } from "@/lib/electoral-rows";
 import { electoralRowsWithLiveMarket, fixtureRequested } from "@/lib/fixtures/max-content";
 import { daysToElection } from "@/lib/format";
 import { incumbentTagsAt, withIncumbentTags } from "@/lib/incumbent-tag";
@@ -107,7 +107,7 @@ export default async function ElectoralPage({
   const clockMs = clockNowMs();
   const passed = daysToElection(cycle, clockMs) < 0;
 
-  const [index, raceCandidates, chamberControl, calendar, pacByRace, incumbentTags, general, pools, participation, pool, freshness] =
+  const [index, raceCandidates, controlRead, calendar, pacByRace, incumbentTags, general, pools, participation, pool, freshness] =
     await Promise.all([
       getRacesIndex(cycle),
       getRaceCandidatesForCycle(cycle),
@@ -122,6 +122,10 @@ export default async function ElectoralPage({
       // HO 784: each rater's AS OF and VIA, for the sources line under the list.
       getRaterFreshness(),
     ]);
+  // HO 827: the hero band's control blob, gone when the cron hasn't written it
+  // in 24 hours (HO 826's rule; the read already drops a closed market). With
+  // null the band renders nothing.
+  const chamberControl = unlessStale(controlRead?.control ?? null, controlRead?.updatedAt ?? null, nowMs);
   // HO 759: each row carries its incumbent's tag, so the list, the map's hover,
   // the pinned card and the district card read the same one.
   // HO 779: past election day a run elsewhere shows its result (the clock

@@ -352,6 +352,14 @@ export function withoutStaleOdds<T extends OddsRow>(index: T[], nowMs: number): 
   });
 }
 
+// HO 827: the 24-hour rule for a value that isn't a seat's row. /electoral's
+// hero band reads one dashboard_state blob the odds cron writes every tick;
+// a blob whose write time is missing, unparseable or more than ODDS_STALE_MS
+// old is gone, as a seat's price is, and the band renders nothing for null.
+export function unlessStale<T>(value: T | null, updatedAt: string | null, nowMs: number): T | null {
+  return value == null || staleAt(updatedAt, nowMs) ? null : value;
+}
+
 // R6. HO 768 built it for the map (the contests are built from the index, so
 // the pinned card, the district card and the district export each kept a
 // called seat's market); HO 826 takes the set, so `/`'s cards can pass one

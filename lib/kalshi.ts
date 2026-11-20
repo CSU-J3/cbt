@@ -170,21 +170,35 @@ export async function fetchKalshiSeatOdds(): Promise<KalshiOdds[]> {
 
 type KControlMarket = {
   ticker?: string;
+  status?: string | null;
   last_price_dollars?: string | null;
   yes_sub_title?: string | null;
   no_sub_title?: string | null;
 };
 
+// HO 827: the status an open market carries. HO 827's STEP 0 read Kalshi's
+// public API: an open market reads "active", with a close time ahead and an
+// empty result, and both 2026 control markets read "finalized" (closed on
+// election night, settled an hour later), their last prices 0.999 and 0.001.
+const OPEN_STATUS = "active";
+
 // One chamber-control event → {fav, other} with both exact pcts. Party comes
 // from the outcome-market ticker suffix (CONTROLH-2026-D / -R), falling back to
 // the label. Returns null if fewer than two outcomes price (degrade, don't
 // crash). Favored = higher implied prob; an exact tie keeps a stable order.
+// HO 827 (Corey, Nov 20: add the cells when their market comes up, drop them
+// once the odds close): an outcome counts only while its market is open. The
+// read asks Kalshi for `status=open`, which it honours, and checks each market's
+// own status as well, so a filter Kalshi ever ignored couldn't pass a closed
+// market. A chamber with fewer than two open outcomes is null, as before, and
+// the cron writes it.
 async function readControl(eventTicker: string): Promise<ChamberOdds | null> {
   const d = await kalshiGet<{ markets?: KControlMarket[] }>(
-    `${KALSHI_BASE}/markets?event_ticker=${eventTicker}&limit=8`,
+    `${KALSHI_BASE}/markets?event_ticker=${eventTicker}&limit=8&status=open`,
   );
   const byParty = new Map<"D" | "R" | "I", number>();
   for (const m of d.markets ?? []) {
+    if (m.status !== OPEN_STATUS) continue;
     const p = parseFloat(m.last_price_dollars ?? "");
     if (!Number.isFinite(p)) continue;
     const tk = (m.ticker || "").toUpperCase();

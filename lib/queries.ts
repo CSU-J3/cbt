@@ -3562,17 +3562,24 @@ export const getSeatOutlook = unstable_cache(
 // hero band. Reads the single dashboard_state JSON blob the Kalshi cron writes;
 // null (or a null chamber) when no blob exists yet → the band cell degrades.
 // Tag "races" so the cron's revalidateTag("races") flushes it.
+// HO 827: returns the row's write time with the blob, so the page can treat a
+// blob the cron hasn't written in 24 hours as gone (lib/electoral-rows.ts,
+// unlessStale), as HO 826 treats a seat's price.
+export type ChamberControlRead = { control: ChamberControl; updatedAt: string | null };
 export const getChamberControl = unstable_cache(
-  async (): Promise<ChamberControl | null> => {
+  async (): Promise<ChamberControlRead | null> => {
     const db = getDb();
     const rs = await db.execute({
-      sql: "SELECT value FROM dashboard_state WHERE key = 'kalshi_chamber_control' LIMIT 1",
+      sql: "SELECT value, updated_at FROM dashboard_state WHERE key = 'kalshi_chamber_control' LIMIT 1",
       args: [],
     });
     const raw = rs.rows[0]?.value as string | undefined;
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as ChamberControl;
+      return {
+        control: JSON.parse(raw) as ChamberControl,
+        updatedAt: (rs.rows[0]?.updated_at as string | null | undefined) ?? null,
+      };
     } catch {
       return null;
     }
