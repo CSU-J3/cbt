@@ -3693,3 +3693,28 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **The backlog** line on the odds-off three carries the cause and the pointer. It stays open, and its close is unchanged. The reconcile read 281 / 396 / 677 at open and at close.
 - **Oddities:** one entry, *The crawl's Kalshi anchor ran out with Alaska's Senate call…*.
 - **Also notes now run through HO 824.**
+
+**Also (HO 825): the crawl goes green and stays green. `/electoral`'s open-row Kalshi line is asserted on a Preview-only fixture row; Production asserts the ◆ cells and that the fixture is dead; `/`'s ON control reads the line on screen.** Built on `cf05fd5`, on `825-review`.
+
+- **HO 824's FF, owed by its block:** `main` went `218c592..cf05fd5` by 5:46:50 PM MST Nov 19, no force. Production record `7929991359`, served from about 5:47:35 PM. `e2e-prod` `44648645537`: 232 passed, 3 failed (the same odds-off three); crawl step 8m39s, job 11m29s on a 2m23s Playwright install (HO 823's run: 21 s).
+- **The rulings, verbatim:**
+  - The chat, 5:45 PM MST Nov 19 (`824-review-ruling.md`): *"Ruled: the cause is accepted. The remedy is 2, the Preview fixture; 1 and 4 are not built. `/`'s ON control reading on-screen lines and the stale SKILL :2926 sentence ride HO 825. The anchor correction is ratified."*
+  - Corey, 7:27 PM MST Nov 19, on Kalshi prices shown as live on called races and after a market left the feed: *"Hide both (Recommended)"*, the option *no market price on a called race anywhere, and a price the sync hasn't refreshed in 24 hours is treated as gone*. That's HO 826; this files its line and builds none of it.
+- **STEP 0 held** (`825-artifacts/step0-825.md`).
+  - Claim 7: under Playwright 1.61.1 a hand-made `browser.newContext()` inherits `use.extraHTTPHeaders`. Read against a Preview with a dummy bypass value, the `page` fixture as control.
+  - Claim 8: a review ref's Preview run reads the ref's own `e2e-prod.yml`. `43477400374` (HO 815's) ran the ref's run line, not `main`'s.
+  - Claim 10: `/` on prod, `.rc-kpline[data-market]` 6 in the DOM and 0 visible at load, 6 visible after the Races click.
+- **§ 1 (`test`):** `e2e/odds-fixture.spec.ts`, new. With `ODDS_FIXTURES=1`, four tests on `/electoral?fixture=max`: the marker first, the line ON at 1440, OFF at 1440 and 430. Unset, one: no fixture renders. `odds-off.spec.ts`: `/electoral` opens no row, its ON control asserts the ◆ cells, `openRaceWithKalshi` goes, and `/`'s control opens Races and asserts the line on screen.
+- **§ 2 (`feat`):** `electoralRowsWithLiveMarket(rows, nowMs)` in `lib/fixtures/max-content.ts`, the first Senate row uncalled with *KALSHI Fixture 61%*. The page swaps the LIST's rows on request, the map keeps the real ones, and the `<li>` carries `data-fixture="max"` through `RaceListView`'s `fixtureRaceId`.
+- **§ 3 (`ci`):** the crawl names the spec (236 from the FF); `narrow-preview` sets `ODDS_FIXTURES`, names it (172) and is renamed *Narrow, touch and the odds fixture against the Preview deployment*.
+- **The legs:**
+  - A: a build of `cf05fd5` serving `CBT_FIXTURES=1` read the four red (marked 0); the tip read them green, row `S-AK-2026`, line *KALSHI Fixture 61%*. Captures `legA-fixture-row-1440-odds-on.png` and `-off.png`.
+  - B: without `CBT_FIXTURES`, the served `/electoral` is identical before and after, build hashes aside, and `?fixture=max` serves the same page but for the URL. The Production test is green there and on prod, and red on a server carrying `CBT_FIXTURES`. The edited odds-off spec read 13 of 13 against prod at `cf05fd5`, the three that were red included.
+  - C: `/`'s old control counted 12 DOM markers on a page showing no line; with the Races click planted out, the new one reds at `kpVisible=0`.
+  - D: by claim 8, the tip's own `narrow-preview` runs the four.
+  - E: the narrow leak control read `/electoral` at marker 0 at 430, 390 and 851 on the fixture build.
+  - Gates: typecheck and the e2e tsc green; `check:odds-sites` 13 of 13 at base and tip, `check:design-citations` OK; each commit builds alone (65 routes, 0 warnings, with and without `CBT_FIXTURES`). The crawl's five specs read 236 of 236 on a local build without `CBT_FIXTURES`, `narrow-preview`'s three 172 of 172 (narrow 120, touch 48, fixture 4) with it, and fit-finish's `/` scroll test green.
+- **The backlog:** the odds-off three struck, closed by the ruled change on Leg B's 13 green; HO 826's line filed. Reconcile 281 / 396 / 677 at open, 281 / 397 / 678 at close.
+- **Oddities:** none. Claims 7 and 8 read as expected.
+- **Flagged in the paste:** the fixture's `provenance` is `null`, not the row's; `/`'s OFF cells never open RACES, so no Races-panel site is read with odds off; fit-finish's `/` dropdown hunt times out, on prod at `cf05fd5` too.
+- **Also notes now run through HO 825.**
