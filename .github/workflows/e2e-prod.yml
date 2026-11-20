@@ -196,6 +196,20 @@ jobs:
     # (ODDS_FIXTURES=1, 8.1 s locally at two workers), so the crawl reads 236
     # from HO 825's FF and `narrow-preview` reads 172 from the first Preview of
     # `825-review`, each one's first reading.
+    # RE-MEASURED (HO 826), the same read. `Run prod smoke crawl` against prod
+    # at `9f88d6b` (HO 825's FF): 236 tests (54 smoke, 13 odds-off, 120 narrow,
+    # 48 touch, 1 odds-fixture), all passed, in 8m44s, whole job 9m36s
+    # (44782386373), its install 30 s: back under the 10-minute line below, as
+    # HO 825's FF ruling asked to be watched. Narrow, touch and the odds fixture
+    # on `narrow-preview` at `9f88d6b`: 172 tests (120 narrow, 48 touch, 4
+    # odds-fixture) in 5m50s, whole job 6m34s (44682703311, the Preview of
+    # `825-review`), its install 24 s. HO 826 moves one test on this job and
+    # adds four on that one: odds-off's `/` ON control leaves (a called seat's
+    # card carries no price since HO 826, so Production's `/` draws no K/P line)
+    # and odds-fixture gains `/?fixture=max`'s Production test, so the crawl
+    # stays at 236 (54 smoke, 12 odds-off, 120 narrow, 48 touch, 2
+    # odds-fixture); and `/?fixture=max`'s four Preview tests (15.2 s locally at
+    # one worker) take `narrow-preview` to 176. Each is its ref's first reading.
     # THE CAP STAYS AT 20 while the whole job stays under 10 minutes; past that,
     # flag it. Re-measure here before adding a fourth width or caching the
     # install.
@@ -324,6 +338,11 @@ jobs:
         # no fixture here: the seam is dead where it must be, and a Production
         # that renders it reds. Site 12 on /electoral (the open row's Kalshi line)
         # is asserted on the Preview's fixture row, in `narrow-preview` below.
+        # HO 826 — and a second Production test here: `/?fixture=max` draws no
+        # fixture card. `/`'s K/P line (site 3) is asserted on the Preview's
+        # three fixture cards, below, since a called seat's card carries no
+        # price; odds-off's `/` ON control left for that reason, so this job
+        # still reads 236.
         run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts e2e/narrow.spec.ts e2e/touch.spec.ts e2e/odds-fixture.spec.ts --grep-invert "@nonci" --retries=2
 
       # HO 822 — KEYED ON THE TRACES EXISTING, like the #418 step below, and for
@@ -580,6 +599,10 @@ jobs:
       # Preview run reads the ref's own workflow (HO 825 STEP 0, from
       # 43477400374), so a ref that touches the line gets this reading before the
       # FF. Counts and times are in the smoke job's budget block.
+      #
+      # HO 826 — and four on `/?fixture=max` (the three fixture cards' markers
+      # first, then the live card's K/P line ON at 1440 and OFF at 1440 and
+      # 430, the called and stale cards drawing none), eight in all.
       - name: Narrow, touch and the odds fixture against the Preview deployment
         env:
           BASE_URL: ${{ github.event.deployment_status.environment_url }}
@@ -594,6 +617,7 @@ jobs:
           # HO 825 — the same declaration for `e2e/odds-fixture.spec.ts`: the
           # Preview's fixture row is expected here, and nowhere else. This job
           # is the only place in the repo that sets this variable either.
+          # HO 826: and `/`'s three fixture cards, by the same declaration.
           ODDS_FIXTURES: '1'
         run: npx playwright test e2e/narrow.spec.ts e2e/touch.spec.ts e2e/odds-fixture.spec.ts --retries=0
 
