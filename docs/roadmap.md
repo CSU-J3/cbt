@@ -3718,3 +3718,29 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Oddities:** none. Claims 7 and 8 read as expected.
 - **Flagged in the paste:** the fixture's `provenance` is `null`, not the row's; `/`'s OFF cells never open RACES, so no Races-panel site is read with odds off; fit-finish's `/` dropdown hunt times out, on prod at `cf05fd5` too.
 - **Also notes now run through HO 825.**
+
+**Also (HO 826): no market price on a called seat, and a price the sync hasn't written in 24 hours is gone, on `/` and `/electoral`, for Kalshi and Polymarket. Both rules run on the index rows, on the server; `/`'s K/P line is asserted on three Preview fixture cards.** Built on `9f88d6b`, on `826-review`.
+
+- **HO 825's FF, taken:** `main` went `cf05fd5..9f88d6b` by 10:19:49 AM MST Nov 20, no force. Production record `7948024900`, served from about 10:20:35 AM. `e2e-prod` `44782386373`: 236 passed; crawl step 8m44s, job 9m36s, back under the 10-minute line (install 30 s).
+- **The ruling, verbatim:** Corey, 7:27 PM MST Nov 19: *"Hide both (Recommended)"*, the option *no market price on a called race anywhere, and a price the sync hasn't refreshed in 24 hours is treated as gone*.
+- **The chat's four readings:** Polymarket takes both rules; "treated as gone" means the row arrives with no odds, decided on the server before any component sees it; a card with no price on either venue draws no K/P line; the 24 hours run on the real clock against the cron's `updated_at`, the called rule on `clockNowMs()`.
+- **STEP 0 held** (`826-artifacts/step0-826.md`), all 14 claims.
+  - Claim 9: all six featured seats called, all six cards priced (*K Peltola 100% · P 100%* on `S-AK-2026`). Kalshi wrote 6 rows in 24 hours (1 rated, `MN-01-2026`), Polymarket 0.
+  - Claims 10 and 12: `/welcome` and `/race/S-AK-2026` draw no price; no cache key carries a version part.
+  - Claim 13, flagged: the hero band reads D 100% · R 0% on both chambers, the House LIVE, written 11:15 AM that day.
+- **§ 1 (`test`):** odds-fixture gains `/?fixture=max`: four Preview tests (the three cases' markers, ON at 1440, OFF at 1440 and 430) and one Production. odds-off: `/`'s OFF cells open RACES; `/`'s ON control leaves.
+- **§ 2 (`feat`):** `getRacesIndex` takes both `updated_at`s, key `["getRacesIndex", "826"]`. `lib/electoral-rows.ts` holds `ODDS_STALE_MS`, `withoutStaleOdds`, `calledRaceIds` (sharing R6's predicate with `buildElectoralRows`) and `withoutCalledOdds(index, called)` for both venues. `/electoral` strips stale prices before its rows; `CompetitiveRacesBlock` reads results past election day and runs both rules. `KpLine` draws nothing with neither favorite. The seam is `featuredWithMarketCases`, marked `data-fixture-case`.
+- **§ 3 (`ci`):** comments only. The crawl stays 236 (12 odds-off, 2 odds-fixture); `narrow-preview` reads 176.
+- **The legs:**
+  - A: a build of `9f88d6b` with `CBT_FIXTURES=1` read the four `/` tests red (marked 0); HEAD read 8 of 8, cases `S-AK-2026` live, `S-KS-2026` called, `S-NH-2026` stale, line *K Fixture 61% · P 58%*.
+  - B: `9f88d6b` and HEAD on one store: `/`'s six cards lost the line, diamonds and edge accent (each 30 px shorter at 1440); `NY-01-2026` lost its open-row and map-card line; `MN-01-2026` kept *Johnson 97%*.
+  - C: `calledRaceIds` 103 equals the rows' 103; prices kept, 1 Kalshi and 0 Polymarket, equal a guarded SELECT's.
+  - D: with the block's stale rule planted out the ON test reds at `staleMarkets=3`, with the called rule out at `calledMarkets=3`; restored, 4 of 4.
+  - E: captures at 1440, 2560, 430 and reduced motion (read back true), and the fixture cards on and off; at 2560 the row isn't ragged.
+  - F: without `CBT_FIXTURES`, both Production tests green and `/?fixture=max`'s grid byte-identical to `/`'s; odds-off 12 of 12.
+  - G: the tip's Preview, in the paste.
+  - Gates: typecheck and the e2e tsc green; `check:odds-sites` 13 of 13, `check:design-citations` OK. The crawl's five specs read 236 of 236 on a build without `CBT_FIXTURES`; `narrow-preview`'s three read 176 of 176 with it, the narrow marker on `/?fixture=max` still 2. fit-finish's `/` scroll test green, its dropdown hunt timing out as filed. No hydration error on `/`, `/electoral` or either fixture route. Each commit builds alone.
+- **The backlog:** line 16 struck, closed on Leg G's Preview reads against Leg B's before column (it reopens if the FF's prod reads differ). Filed: fit-finish's `/` dropdown timeout; a called card's missing result (Corey); the hero band (Corey). Reconcile 281 / 397 / 678 at open, 283 / 398 / 681 at close.
+- **Oddities:** none. Claim 9 and Leg C read as expected.
+- **Flagged in the paste:** `/`'s markers message names only the env, and a build without the seam reds with it too; the Production `/` test reads whole cards, so a NEWS headline holding *Fixture* would red it; the key's `826` part repeats what Next's callback-source key already does; HO 824's probe script took a one-call fix outside the file list; Leg G reads after the push, so the struck line names it as the close's read in the paste.
+- **Also notes now run through HO 826.**
