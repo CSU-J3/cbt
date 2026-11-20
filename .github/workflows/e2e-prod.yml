@@ -183,6 +183,19 @@ jobs:
     # 21.6px from HIDE). The pin cells add 12 documents a run, each loading and
     # reloading, so the smoke crawl grows by the same six tests at HO 820's FF
     # (227), its first reading.
+    # RE-MEASURED (HO 825), the same read. `Run prod smoke crawl` against prod
+    # at `cf05fd5` (HO 824's FF): 235 tests (67 smoke and odds-off, 120 narrow,
+    # 48 touch; 232 passed and odds-off's three /electoral tests failed) in
+    # 8m39s, whole job 11m29s (44648645537). The job is past the 10-minute line
+    # below on its install, not its crawl: `Install Playwright` took 2m23s
+    # against 21 s on HO 823's run (44630542152), while the crawl step was 32 s
+    # under that run's 9m11s. Narrow and touch on `narrow-preview` at
+    # `cf05fd5`: 168 tests (120 narrow, 48 touch) in 5m20s, whole job 7m24s
+    # (44640527763, the Preview of `824-review`), its install 1m47s. HO 825's `e2e/odds-fixture.spec.ts` is one test on this job
+    # (the Production direction, 4.5 s locally) and four on `narrow-preview`
+    # (ODDS_FIXTURES=1, 8.1 s locally at two workers), so the crawl reads 236
+    # from HO 825's FF and `narrow-preview` reads 172 from the first Preview of
+    # `825-review`, each one's first reading.
     # THE CAP STAYS AT 20 while the whole job stays under 10 minutes; past that,
     # flag it. Re-measure here before adding a fourth width or caching the
     # install.
@@ -224,9 +237,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run prod smoke crawl
-        # FOUR SPECS, EACH NAMED BY PATH (never an e2e/ glob that would silently
+        # FIVE SPECS, EACH NAMED BY PATH (never an e2e/ glob that would silently
         # pick up the next spec that lands): the crawl first, then the odds-off,
-        # narrow and touch passes below. Runs against the live prod domain
+        # narrow, touch and odds-fixture passes below. Runs against the live prod domain
         # (spec BASE_URL default). --grep-invert "@nonci" drops the tagged
         # markets-hover case: bucket D — prod withholds the tape from headless
         # Chrome under BotID, so there's nothing to hover. (That also records why
@@ -304,7 +317,14 @@ jobs:
         # Deploy-blocking for the narrow gate's reason: a control under 16px
         # comes from CSS, so the deploy that introduced it is the one to red.
         # Named by path like the others, never by an e2e/ glob.
-        run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts e2e/narrow.spec.ts e2e/touch.spec.ts --grep-invert "@nonci" --retries=2
+        #
+        # HO 825 — the odds fixture joins, in its Production direction.
+        # `e2e/odds-fixture.spec.ts` reads ODDS_FIXTURES, and this job sets none,
+        # so it runs the one test that asserts `/electoral?fixture=max` renders
+        # no fixture here: the seam is dead where it must be, and a Production
+        # that renders it reds. Site 12 on /electoral (the open row's Kalshi line)
+        # is asserted on the Preview's fixture row, in `narrow-preview` below.
+        run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts e2e/narrow.spec.ts e2e/touch.spec.ts e2e/odds-fixture.spec.ts --grep-invert "@nonci" --retries=2
 
       # HO 822 — KEYED ON THE TRACES EXISTING, like the #418 step below, and for
       # its reason: `--retries=2` concludes `success` when a retry passes, so
@@ -453,7 +473,7 @@ jobs:
       github.event.deployment_status.state == 'success' &&
       github.event.deployment_status.environment == 'Preview'
     runs-on: ubuntu-latest
-    # The narrow and touch gates against one host. Capped well under the smoke
+    # The narrow and touch gates and the odds fixture (HO 825) against one host. Capped well under the smoke
     # job's 20 because there is far less to do and a hung run here blocks a
     # human; the measured time is in the smoke job's budget block.
     timeout-minutes: 15
@@ -553,7 +573,14 @@ jobs:
       # HO 815 — the touch gate rides this step, so a ref that changes a control
       # or the stylesheet gets its touch reading before the FF, on the same
       # proven deployment and at the same --retries=0.
-      - name: Narrow gate against the Preview deployment
+      #
+      # HO 825 — the odds fixture rides it too, in its Preview direction: four
+      # tests on `/electoral?fixture=max` (the marker first, then the fixture
+      # row's Kalshi line ON at 1440 and OFF at 1440 and 430). A review ref's
+      # Preview run reads the ref's own workflow (HO 825 STEP 0, from
+      # 43477400374), so a ref that touches the line gets this reading before the
+      # FF. Counts and times are in the smoke job's budget block.
+      - name: Narrow, touch and the odds fixture against the Preview deployment
         env:
           BASE_URL: ${{ github.event.deployment_status.environment_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
@@ -564,7 +591,11 @@ jobs:
           # fixture is a LEAK and the spec reds on it. This job is the only
           # place in the repo that sets this variable.
           NARROW_FIXTURES: '1'
-        run: npx playwright test e2e/narrow.spec.ts e2e/touch.spec.ts --retries=0
+          # HO 825 — the same declaration for `e2e/odds-fixture.spec.ts`: the
+          # Preview's fixture row is expected here, and nowhere else. This job
+          # is the only place in the repo that sets this variable either.
+          ODDS_FIXTURES: '1'
+        run: npx playwright test e2e/narrow.spec.ts e2e/touch.spec.ts e2e/odds-fixture.spec.ts --retries=0
 
       - name: Upload report on failure
         if: failure()
