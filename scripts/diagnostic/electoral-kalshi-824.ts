@@ -25,6 +25,10 @@
 //    page's other eight readers feed the board, not the rows), then
 //    buildElectoralRows, with unstable_cache a passthrough
 //    (next-cache-stub-757.mjs), so every read is uncached.
+//    HO 826: this reads HO 824's shape. Since HO 826 the page runs
+//    withoutStaleOdds before it builds the rows and the map, and this probe
+//    doesn't, so a re-run shows a stale price (NY-01-2026's, written Nov 5)
+//    that the page no longer draws.
 // B  the counts per tab, and the first row on each tab that renders a line.
 // C  kalshi_odds and the Kalshi cron's last twelve cron_runs rows.
 // D  what changed between the last green run and the first red one.
@@ -415,11 +419,13 @@ for (const r of runoffBoxes) say(`  general_runoff box: ${r.race_id} box_date ${
 say(`latest close_time among uncalled LIST rows with odds: ${latestUncalledClose} (${mst(latestUncalledClose)})`);
 
 // ---- the cartogram's contests (the map and district cards' data) -------------------
-const carto = withoutCalledOdds(races, rows);
+// HO 826: withoutCalledOdds takes the called set, built from the rows as the page builds it. The page
+// passes it the stale-stripped index; this passes `races`, HO 824's shape (see the header).
+const carto = withoutCalledOdds(races, new Set(rows.filter((r) => r.result?.called).map((r) => r.raceId)));
 const cartoActive = carto.filter((r) => kalshiActive(r.kalshiOdds, nowMs)).map((r) => r.raceId);
 res.cartogramActive = cartoActive;
 say("");
-say(`the cartogram's contests (withoutCalledOdds(races, rows), page.tsx:138) with active odds: ${cartoActive.length}${cartoActive.length ? ` (${cartoActive.join(", ")})` : ""}`);
+say(`the cartogram's contests (withoutCalledOdds(races, called), HO 824's shape: no stale strip) with active odds: ${cartoActive.length}${cartoActive.length ? ` (${cartoActive.join(", ")})` : ""}`);
 say(`statements sent, all through the read guard: ${guarded}`);
 
 // ---- E and F: the pages ------------------------------------------------------------

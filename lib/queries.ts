@@ -3047,6 +3047,13 @@ export type RaceIndexRow = {
   // market (every House seat — Polymarket only covers Senate — and the one
   // uncovered Senate seat). Drives the v2 rich card's Polymarket diamond + cell.
   polymarketOdds: PolymarketOdds | null;
+  // HO 826: when the odds cron last wrote each venue's row (`updated_at`, one
+  // ISO stamp per tick for every seat the feed returned). Each is null when its
+  // odds are. The cron upserts and never deletes, so a market that leaves the
+  // feed keeps its last price; lib/electoral-rows.ts's withoutStaleOdds reads
+  // these to take a price the sync hasn't written in 24 hours.
+  kalshiUpdatedAt: string | null;
+  polymarketUpdatedAt: string | null;
   // Per-source ratings; null when that rater rated it Solid/Safe (and
   // therefore wasn't seeded) or hasn't rated the seat at all.
   cookRating: string | null;
@@ -3104,6 +3111,7 @@ export const getRacesIndex = unstable_cache(
                    ko.favorite_party AS ko_favorite_party,
                    ko.open_interest AS ko_open_interest,
                    ko.close_time AS ko_close_time,
+                   ko.updated_at AS ko_updated_at,
                    pm.implied_pct AS pm_implied_pct,
                    pm.slug AS pm_slug,
                    pm.favorite_label AS pm_favorite_label,
@@ -3112,6 +3120,7 @@ export const getRacesIndex = unstable_cache(
                    pm.volume AS pm_volume,
                    pm.liquidity AS pm_liquidity,
                    pm.end_date AS pm_end_date,
+                   pm.updated_at AS pm_updated_at,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating END) AS cook_rating,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating_score END) AS cook_score,
                    MAX(CASE WHEN rr.source = 'sabato' THEN rr.rating END) AS sabato_rating,
@@ -3221,6 +3230,14 @@ export const getRacesIndex = unstable_cache(
                   row.pm_liquidity == null ? null : Number(row.pm_liquidity),
                 endDate: (row.pm_end_date as string | null) ?? null,
               },
+        kalshiUpdatedAt:
+          row.ko_implied_pct == null
+            ? null
+            : ((row.ko_updated_at as string | null) ?? null),
+        polymarketUpdatedAt:
+          row.pm_implied_pct == null
+            ? null
+            : ((row.pm_updated_at as string | null) ?? null),
         cookRating,
         sabatoRating,
         ieRating,
@@ -3247,7 +3264,14 @@ export const getRacesIndex = unstable_cache(
 
     return out;
   },
-  ["getRacesIndex"],
+  // HO 826: the "826" part says, in the key, that no render after the deploy
+  // reads an entry cached in the old shape. Such an entry carries no write
+  // times, and withoutStaleOdds reads a missing time as stale, so it would
+  // blank every price for up to an hour. Next 16 also keys an entry on the
+  // callback's source (`cb.toString()`, unstable-cache.js:58), which the two new
+  // columns change, so the part is the stated reason rather than the only
+  // guard. No other key here carries a version part.
+  ["getRacesIndex", "826"],
   { revalidate: 3600, tags: ["race-ratings", "races"] },
 );
 

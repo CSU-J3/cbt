@@ -9,6 +9,7 @@ import type {
   RaceMove,
   RaceNewsItem,
 } from "@/lib/queries";
+import type { FixtureCase } from "@/lib/fixtures/max-content";
 import {
   activeChallengers,
   ambiguousSurnames,
@@ -52,12 +53,16 @@ export function CompetitiveRacesStrip({
   // HO 393: { raceId → UDP IE direction rows } for the card's PAC SPENDING
   // glance line.
   pacByRace,
+  // HO 826: { raceId → fixture case } on a `?fixture=max` render only (the
+  // seam, lib/fixtures/max-content.ts); each card carries its case.
+  cases,
 }: {
   races: CompetitiveRace[];
   hubs: (RaceHubData | null)[];
   rich?: (RaceIndexRow | null)[];
   moves?: Record<string, RaceMove>;
   pacByRace?: Record<string, PacIeRow[]>;
+  cases?: Record<string, FixtureCase>;
 }) {
   // HO 305: page-level passes for the matchup block. (1) Ambiguous surnames —
   // a surname shared by ≥2 distinct people across the cards (Susan Collins
@@ -103,6 +108,7 @@ export function CompetitiveRacesStrip({
               // renders costs no additional read.
               news={hubs[i]?.news?.[0]}
               pac={pacByRace?.[race.raceId]}
+              fixtureCase={cases?.[race.raceId]}
             />
           ) : null;
         })}

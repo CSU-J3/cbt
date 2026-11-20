@@ -8,6 +8,7 @@ import {
 } from "@/components/RaceNewIndicator";
 import { IncumbentTag } from "@/components/IncumbentTag";
 import { SourceTag } from "@/components/SourceTag";
+import type { FixtureCase } from "@/lib/fixtures/max-content";
 import { formatDollarsCompact } from "@/lib/format";
 import type {
   PacIeRow,
@@ -95,6 +96,12 @@ function KpLine({
   polyFav: MarketFav;
   polyPct: number | null;
 }) {
+  // HO 826: with neither favorite there's no line. "K n/a · P n/a" on a called
+  // seat, or on one whose prices the sync stopped writing, says nothing, and
+  // since HO 826 such a card arrives with no odds at all. The card takes the
+  // geometry it already has with odds off (HO 692's 265->235px below).
+  if (!kalshiFav && !polyFav) return null;
+
   const sameFavorite =
     !!kalshiFav &&
     !!polyFav &&
@@ -196,6 +203,11 @@ export function RaceCard({
   // glance line (the card is a whole <Link>, so no nested FEC anchors here; the
   // clickable version lives on the /race hub + /electoral expands).
   pac,
+  // HO 826: the card's fixture case on a `/?fixture=max` render only (the
+  // seam, lib/fixtures/max-content.ts), emitted as `data-fixture-case` for
+  // e2e/odds-fixture.spec.ts. Undefined everywhere else, so the attribute
+  // isn't rendered. Not `data-fixture`: the narrow gate counts that on `/`.
+  fixtureCase,
 }: {
   row: RaceIndexRow;
   candidates?: RaceCandidate[];
@@ -203,6 +215,7 @@ export function RaceCard({
   news?: RaceNewsHead | null;
   ambiguous?: Set<string>;
   pac?: PacIeRow[];
+  fixtureCase?: FixtureCase;
 }) {
   const isSenate = row.chamber === "senate";
   const open = row.incumbentRunning === 0; // HO 221: explicit 0 only
@@ -398,6 +411,7 @@ export function RaceCard({
       href={`/race/${row.raceId}`}
       className="race-card"
       data-seat={row.raceId}
+      data-fixture-case={fixtureCase}
     >
       <div className="rc-top">
         <span className="rc-seat">{seatLabel(row.raceId)}</span>

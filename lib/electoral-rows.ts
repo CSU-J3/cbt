@@ -12,9 +12,10 @@
 //   - past election day the consensus becomes the result (HO 758's reading).
 import type { IncumbentQualifier } from "./incumbent-qualifier";
 import type { KalshiOdds } from "./kalshi";
+import type { PolymarketOdds } from "./polymarket";
 import { surname, type RosterEntry } from "./race-colors";
 import { districtToken } from "./race-id";
-import { raceResultView } from "./race-result";
+import { raceResultView, type RaceResultView } from "./race-result";
 import { STATE_ABBR_TO_NAME } from "./states";
 import { firstLast } from "./electoral-general";
 import type {
@@ -220,7 +221,7 @@ export function buildElectoralRows(input: {
       if (view.passed) {
         const { keys, misses } = entriesFor(reading.marks, entries);
         const majorKeys = new Set(majors.map((x) => x.key));
-        if (view.decided && reading.marks.length === 1) {
+        if (isCalled(view, reading)) {
           const mark = reading.marks[0]!;
           const entry = entries.find((e) => keys.includes(e.key)) ?? null;
           const named = entry != null && majorKeys.has(entry.key);
@@ -276,18 +277,91 @@ export function buildElectoralRows(input: {
   return { rows, raceNews: { senate: sorted(panel.senate), house: sorted(panel.house) } };
 }
 
-// HO 768: R6's MAP half. The map's contests are built from the index, not from
-// the rows, so the pinned card, the district card and the district export each
-// kept a called seat's market. The page strips it here, from the rows' one mark,
-// before the cartogram is built. Before election day nothing is called and the
-// index passes through as is. (A helper rather than a literal in the page: the
-// odds-sites gate reads every .tsx for the market's name, and the page isn't a
-// market site.)
-export function withoutCalledOdds<T extends { raceId: string; kalshiOdds: KalshiOdds | null }>(
-  index: T[],
-  rows: Pick<ElectoralRow, "raceId" | "result">[],
-): T[] {
-  const called = new Set(rows.filter((r) => r.result?.called).map((r) => r.raceId));
+// ---- R6 and the 24-hour rule (HO 826) ---------------------------------------
+//
+// Corey's ruling (Nov 19, "Hide both"): no market price on a called race
+// anywhere, and a price the sync hasn't refreshed in 24 hours is treated as
+// gone. Both rules live here and run on the index rows, on the server:
+//   - `/`'s race cards (CompetitiveRacesBlock) take both before any card sees
+//     its row;
+//   - /electoral takes the stale rule before buildElectoralRows, so the list,
+//     the ◆ cells, the readout and the map read the same rows, and the called
+//     rule on the map's contests (HO 768's half). Its list keeps R6's per-site
+//     gates on `result.called` (RaceListView, RaceOpenRow), as before.
+// A row that arrives with no odds renders as a seat with no market. (Helpers
+// rather than literals in the two callers: the odds-sites gate reads every
+// .tsx for the market's names, and neither caller is a market site.)
+
+// The one home of the 24 hours. The cron writes every seat the feed returns
+// once per tick (`15 */2 * * *`), so a market still in the feed is never more
+// than one tick old; a row 24 hours old has left it.
+export const ODDS_STALE_MS = 24 * 3_600_000;
+
+// R6's predicate, its one expression: past election day, decided, one mark.
+// buildElectoralRows sets `called` with it, and calledRaceIds reads it for a
+// surface that builds no rows.
+function isCalled(view: Pick<RaceResultView, "passed" | "decided">, reading: Pick<RaceResultWithMarks, "marks">): boolean {
+  return view.passed && view.decided && reading.marks.length === 1;
+}
+
+// The seats a set of results calls, for `/`'s cards, which read no rows. The
+// same results, cycle and clock reach buildElectoralRows on /electoral, so the
+// two agree seat for seat.
+export function calledRaceIds(
+  results: Record<string, RaceResultWithMarks> | null,
+  cycle: number,
+  clockMs: number,
+): Set<string> {
+  const called = new Set<string>();
+  for (const [raceId, reading] of Object.entries(results ?? {}))
+    if (isCalled(raceResultView(reading, cycle, clockMs), reading)) called.add(raceId);
+  return called;
+}
+
+type OddsRow = {
+  raceId: string;
+  kalshiOdds: KalshiOdds | null;
+  polymarketOdds: PolymarketOdds | null;
+  kalshiUpdatedAt: string | null;
+  polymarketUpdatedAt: string | null;
+};
+
+// A write time that's missing, unparseable, or more than ODDS_STALE_MS before
+// `nowMs` is stale. Measured on the real clock (Date.now()), against the
+// cron's `updated_at`.
+function staleAt(updatedAt: string | null, nowMs: number): boolean {
+  if (!updatedAt) return true;
+  const t = Date.parse(updatedAt);
+  return Number.isNaN(t) || nowMs - t > ODDS_STALE_MS;
+}
+
+// The 24-hour rule. Each venue is judged alone: a fresh Kalshi price keeps its
+// row's Kalshi odds whatever its Polymarket row says, and the other way round.
+// A taken price takes its write time with it, so a row's time is null when its
+// odds are.
+export function withoutStaleOdds<T extends OddsRow>(index: T[], nowMs: number): T[] {
+  return index.map((r) => {
+    const k = r.kalshiOdds != null && staleAt(r.kalshiUpdatedAt, nowMs);
+    const p = r.polymarketOdds != null && staleAt(r.polymarketUpdatedAt, nowMs);
+    if (!k && !p) return r;
+    return {
+      ...r,
+      ...(k ? { kalshiOdds: null, kalshiUpdatedAt: null } : {}),
+      ...(p ? { polymarketOdds: null, polymarketUpdatedAt: null } : {}),
+    };
+  });
+}
+
+// R6. HO 768 built it for the map (the contests are built from the index, so
+// the pinned card, the district card and the district export each kept a
+// called seat's market); HO 826 takes the set, so `/`'s cards can pass one
+// built from the results, and takes both venues. Before election day nothing
+// is called and the index passes through as is.
+export function withoutCalledOdds<T extends OddsRow>(index: T[], called: ReadonlySet<string>): T[] {
   if (called.size === 0) return index;
-  return index.map((r) => (called.has(r.raceId) ? { ...r, kalshiOdds: null } : r));
+  return index.map((r) =>
+    called.has(r.raceId)
+      ? { ...r, kalshiOdds: null, polymarketOdds: null, kalshiUpdatedAt: null, polymarketUpdatedAt: null }
+      : r,
+  );
 }

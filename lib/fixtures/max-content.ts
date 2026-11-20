@@ -43,10 +43,12 @@ import type { EnactedBill } from "@/lib/enacted-this-week";
 import { watchState } from "@/lib/hearings";
 import type { KalshiOdds } from "@/lib/kalshi";
 import { hasRecordedVotes } from "@/lib/meeting-documents";
+import type { PolymarketOdds } from "@/lib/polymarket";
 import type {
   AbsenceWatch,
   AbsentMember,
   CommitteeMeeting,
+  RaceIndexRow,
 } from "@/lib/queries";
 
 /**
@@ -281,9 +283,10 @@ export function meetingsWithVotesMax(
 //
 // THE CONSTANT. No real market reads "Fixture", so the line it renders
 // ("KALSHI Fixture 61%") can't be mistaken for one. `closeTime: null` keeps
-// `kalshiActive` true at any clock. HO 826 (a price the sync hasn't refreshed in
-// 24 hours is treated as gone) will have to give this constant a fresh write
-// time, from `nowMs`, when that rule lands, or the fixture's line goes with it.
+// `kalshiActive` true at any clock. It carries no write time and needs none: HO
+// 826's 24-hour rule reads the write time on the INDEX row
+// (`kalshiUpdatedAt`) and runs before the rows are built, and this row is
+// swapped in after, so the rule never meets it.
 const FIXTURE_KALSHI: Omit<KalshiOdds, "raceId"> = {
   eventTicker: "FIXTURE-825",
   impliedPct: 61,
@@ -308,15 +311,16 @@ const FIXTURE_KALSHI: Omit<KalshiOdds, "raceId"> = {
  *
  * Returns the fixture row's `raceId` so the page can mark it (`data-fixture`).
  * The row is swapped and marked whenever there's a Senate row, so a rule added
- * to `kalshiActive` later (HO 826's freshness) that the constant fails reds the
- * spec's ON and OFF tests at the line, on a marked row, rather than the marker
- * test. `nowMs` is unused today; it's taken so HO 826 can stamp the constant's
- * write time without changing the call site. With no Senate row there's
- * nothing to swap and the rows come back as they were.
+ * to `kalshiActive` later that the constant fails reds the spec's ON and OFF
+ * tests at the line, on a marked row, rather than the marker test. With no
+ * Senate row there's nothing to swap and the rows come back as they were.
+ *
+ * HO 826 dropped the `nowMs` HO 825 took for it: the freshness rule landed on
+ * the index rows, upstream of this swap (see the constant), so nothing here
+ * reads a clock.
  */
 export function electoralRowsWithLiveMarket(
   rows: ElectoralRow[],
-  nowMs: number,
 ): { rows: ElectoralRow[]; fixtureRaceId: string | null } {
   const at = rows.findIndex((r) => r.chamber === "senate");
   if (at < 0) return { rows, fixtureRaceId: null };
@@ -334,4 +338,80 @@ export function electoralRowsWithLiveMarket(
   const next = rows.slice();
   next[at] = { ...real, result, kalshiOdds };
   return { rows: next, fixtureRaceId: real.raceId };
+}
+
+// ---------------------------------------------------------------------------
+// `/` — three race cards, one per case the HO 826 rules decide
+// ---------------------------------------------------------------------------
+
+// WHAT THE CARDS ARE FOR (HO 826). A called seat and a price the sync hasn't
+// written in 24 hours now carry no odds (lib/electoral-rows.ts:
+// withoutCalledOdds, withoutStaleOdds), and a card with no price on either
+// venue draws no K/P line. Production's `/` can then go a whole season with no
+// line on any card, so e2e/odds-fixture.spec.ts reads the line (site 3) on
+// these cards, as it reads site 12 on /electoral's fixture row.
+//
+// THE CASES. The fixture changes the index rows and the called set and nothing
+// else, BEFORE CompetitiveRacesBlock runs the two rules, so each card passes
+// through the shipped rules and they decide what it draws:
+//   - `live`:   not called, both venues written now: the rules leave its prices;
+//   - `called`: in the called set, written now: the called rule takes them;
+//   - `stale`:  not called, written 25 hours ago (an hour past the rule's 24):
+//               the stale rule takes them.
+export type FixtureCase = "live" | "called" | "stale";
+const FIXTURE_CASES: readonly FixtureCase[] = ["live", "called", "stale"];
+const FIXTURE_STALE_BY_MS = 25 * 3_600_000;
+
+// The Polymarket twin of FIXTURE_KALSHI: the same favorite, so the K/P line
+// prints "Fixture" once, on its K half, and no real market reads it.
+const FIXTURE_POLYMARKET: Omit<PolymarketOdds, "raceId"> = {
+  slug: "fixture-826",
+  impliedPct: 58,
+  favoriteLabel: "Fixture",
+  favoriteIsParty: false,
+  favoriteParty: null,
+  volume: null,
+  liquidity: null,
+  endDate: null,
+};
+
+/**
+ * The index and the called set with the featured Senate seats changed, in card
+ * order (the first `live`, the second `called`, the third `stale`), and a map of
+ * `raceId` to case for the cards' `data-fixture-case`. Each changed row carries
+ * both venues' constants (Kalshi as FIXTURE_KALSHI with its own ticker,
+ * `FIXTURE-826`) and their write times; every other field is the real row's,
+ * and the ids are real. A seat is put in the set for `called` and taken out for
+ * the other two, whatever its real result says. With fewer than three Senate
+ * seats featured, the cases go to the ones there are, in that order.
+ */
+export function featuredWithMarketCases<T extends RaceIndexRow>(
+  index: T[],
+  featured: { raceId: string }[],
+  called: ReadonlySet<string>,
+  nowMs: number,
+): { index: T[]; called: Set<string>; cases: Record<string, FixtureCase> } {
+  const byId = new Map(index.map((r) => [r.raceId, r]));
+  const seats = featured
+    .map((f) => byId.get(f.raceId))
+    .filter((r): r is T => r?.chamber === "senate")
+    .slice(0, FIXTURE_CASES.length);
+  const cases: Record<string, FixtureCase> = {};
+  const nextCalled = new Set(called);
+  const changed = new Map<string, T>();
+  seats.forEach((real, i) => {
+    const c = FIXTURE_CASES[i]!;
+    const at = new Date(c === "stale" ? nowMs - FIXTURE_STALE_BY_MS : nowMs).toISOString();
+    cases[real.raceId] = c;
+    if (c === "called") nextCalled.add(real.raceId);
+    else nextCalled.delete(real.raceId);
+    changed.set(real.raceId, {
+      ...real,
+      kalshiOdds: { raceId: real.raceId, ...FIXTURE_KALSHI, eventTicker: "FIXTURE-826" },
+      polymarketOdds: { raceId: real.raceId, ...FIXTURE_POLYMARKET },
+      kalshiUpdatedAt: at,
+      polymarketUpdatedAt: at,
+    });
+  });
+  return { index: index.map((r) => changed.get(r.raceId) ?? r), called: nextCalled, cases };
 }

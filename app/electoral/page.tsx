@@ -27,7 +27,7 @@ import { SeatOutlookList } from "@/components/SeatOutlookList";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { clockNowMs } from "@/lib/clock";
-import { buildElectoralRows, withoutCalledOdds } from "@/lib/electoral-rows";
+import { buildElectoralRows, withoutCalledOdds, withoutStaleOdds } from "@/lib/electoral-rows";
 import { electoralRowsWithLiveMarket, fixtureRequested } from "@/lib/fixtures/max-content";
 import { daysToElection } from "@/lib/format";
 import { incumbentTagsAt, withIncumbentTags } from "@/lib/incumbent-tag";
@@ -136,17 +136,22 @@ export default async function ElectoralPage({
     getBallotNews(onBallots),
     passed ? getRaceResults(cycle) : Promise.resolve(null),
   ]);
-  const { rows, raceNews } = buildElectoralRows({ cycle, index: races, general, moves, pacByRace, news, results, nowMs, clockMs });
+  // HO 826: a price the sync hasn't written in 24 hours is gone before the rows
+  // are built (lib/electoral-rows.ts), so the list, the ◆ cells, the readout and
+  // the map all read the same rows.
+  const priced = withoutStaleOdds(races, nowMs);
+  const { rows, raceNews } = buildElectoralRows({ cycle, index: priced, general, moves, pacByRace, news, results, nowMs, clockMs });
   // HO 825: the real reads above ran either way; one ternary swaps the LIST's
   // rows. The map keeps the real rows (`withoutCalledOdds` below).
-  const list = fixture ? electoralRowsWithLiveMarket(rows, nowMs) : { rows, fixtureRaceId: null };
+  const list = fixture ? electoralRowsWithLiveMarket(rows) : { rows, fixtureRaceId: null };
 
   // HO 210: cartogram cells reuse the EXACT getRacesIndex rows, so a state's
   // tile count === the number of rows the LIST shows for that state.
   // HO 393: pacByRace threads the UDP IE direction rows onto each contest.
-  // HO 768: built once the rows exist, so a called seat's Kalshi market leaves
-  // the MAP as it leaves the rows (R6).
-  const cartogram = buildRacesCartogram(withoutCalledOdds(races, rows), raceCandidates, pacByRace);
+  // HO 768: built once the rows exist, so a called seat's market leaves the MAP
+  // as it leaves the rows (R6). HO 826: the set is built from the real rows.
+  const called = new Set(rows.filter((r) => r.result?.called).map((r) => r.raceId));
+  const cartogram = buildRacesCartogram(withoutCalledOdds(priced, called), raceCandidates, pacByRace);
   const geometry = getUsMapGeometry();
   const todayISO = new Date(clockMs).toISOString().slice(0, 10);
 

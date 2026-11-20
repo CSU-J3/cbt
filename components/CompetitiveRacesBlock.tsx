@@ -11,11 +11,15 @@ import {
   getRace,
   getRaceCandidates,
   getRaceNews,
+  getRaceResults,
   getIncumbentQualifiers,
   getRacesIndex,
   getRecentRaceMoves,
 } from "@/lib/queries";
 import { clockNowMs } from "@/lib/clock";
+import { calledRaceIds, withoutCalledOdds, withoutStaleOdds } from "@/lib/electoral-rows";
+import { featuredWithMarketCases } from "@/lib/fixtures/max-content";
+import { daysToElection } from "@/lib/format";
 import { incumbentTagsAt, withIncumbentTags } from "@/lib/incumbent-tag";
 
 // HO 163: a race is Senate if its joined chamber says so, or — for rating
@@ -70,9 +74,15 @@ export async function CompetitiveRacesBlock({
   // the extra getBattlefieldSeats query never runs for a caller that doesn't
   // show it; `/` opts in.
   showBattlefield = false,
+  // HO 826 — the fixture seam (HO 740's, `lib/fixtures/max-content.ts`), passed
+  // down from `/`. Dead unless the server carries `CBT_FIXTURES=1` (Preview
+  // scope only): on request, the three featured Senate seats become one card
+  // per case the market rules decide.
+  fixture = null,
 }: {
   cycle?: number;
   showBattlefield?: boolean;
+  fixture?: "max" | null;
 }) {
   const pool = await getMostCompetitiveRaces(cycle, POOL);
   const races = featuredRaces(pool); // Senate-led order
@@ -82,13 +92,28 @@ export async function CompetitiveRacesBlock({
   // `races`) and align each of the 6 cards to its rich row (incumbent join +
   // cash + margin + 3 ratings + Kalshi + Polymarket). The competitive seats
   // are a subset of the 137 rated, so every lookup resolves.
-  const richRows = await (async () => {
+  const { richRows, cases } = await (async () => {
     // HO 759: the incumbent's tag rides on the rich row (RaceCard reads it).
     const [raw, tags] = await Promise.all([getRacesIndex(cycle), getIncumbentQualifiers(cycle)]);
     // HO 779: the clock applied here, on the server.
-    const index = withIncumbentTags(raw, incumbentTagsAt(tags, cycle, clockNowMs()));
+    const clockMs = clockNowMs();
+    const tagged = withIncumbentTags(raw, incumbentTagsAt(tags, cycle, clockMs));
+    // HO 826: no market price on a called seat, and none the sync hasn't
+    // written in 24 hours (lib/electoral-rows.ts). Past election day the seats
+    // the results call are read here, as /electoral reads them; before it the
+    // set is empty and no results are read. The 24 hours run on the real clock.
+    const called =
+      daysToElection(cycle, clockMs) < 0 ? calledRaceIds(await getRaceResults(cycle), cycle, clockMs) : new Set<string>();
+    const nowMs = Date.now();
+    // The fixture swaps the index and the set BEFORE the rules run, so its
+    // cards pass through the shipped rules: `called` and `stale` draw nothing
+    // because the rules took their prices, `live` draws because they left it.
+    const seam = fixture
+      ? featuredWithMarketCases(tagged, races, called, nowMs)
+      : { index: tagged, called, cases: null };
+    const index = withoutCalledOdds(withoutStaleOdds(seam.index, nowMs), seam.called);
     const byId = new Map(index.map((r) => [r.raceId, r]));
-    return races.map((r) => byId.get(r.raceId) ?? null);
+    return { richRows: races.map((r) => byId.get(r.raceId) ?? null), cases: seam.cases };
   })();
 
   // HO 272: latest rating-move date per featured seat, for the cards' MOVED
@@ -145,6 +170,9 @@ export async function CompetitiveRacesBlock({
       rich={richRows}
       moves={moves}
       pacByRace={pacByRace}
+      // Spread only when set, so a page without the fixture passes the props it
+      // always has (no `cases` key at all).
+      {...(cases ? { cases } : {})}
     />
   );
 
