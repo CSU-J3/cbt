@@ -66,7 +66,8 @@
     "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json",
     "test:e2e": "playwright test",
     "check:odds-sites": "tsx scripts/check-odds-sites.ts",
-    "check:design-citations": "tsx scripts/check-design-citations.ts"
+    "check:design-citations": "tsx scripts/check-design-citations.ts",
+    "check:control-close": "tsx scripts/check-control-close.ts"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",

@@ -349,14 +349,17 @@ if (ODDS_FIXTURES === "present") {
       await load(page, HOME_PATH);
       await openRaces(page);
       const markers = await page.locator("[data-fixture-case]").count();
-      const anyFavorite = await page.locator("a.race-card").filter({ hasText: new RegExp(FAVORITE) }).count();
+      // HO 827 (826-ff-go.md, ruling 2): the K/P line only. A card's whole text
+      // also holds its NEWS chip's headline, so a headline carrying the word
+      // would red the crawl as a leak when nothing leaked.
+      const anyFavorite = await page.locator("a.race-card .rc-kpline").filter({ hasText: new RegExp(FAVORITE) }).count();
       const seats = await page.locator("a.race-card").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.seat));
-      console.log(`[odds-fixture home production] cards=${seats.join(",")} markers=${markers} favoriteCards=${anyFavorite}`);
+      console.log(`[odds-fixture home production] cards=${seats.join(",")} markers=${markers} favoriteLines=${anyFavorite}`);
       expect(
         markers,
         `${HOME_PATH} RENDERED A FIXTURE CARD on a run that declared none — the server carries CBT_FIXTURES where it must not (Preview scope only)`,
       ).toBe(0);
-      expect(anyFavorite, `no race card on the page may hold the fixture's favorite, ${FAVORITE}`).toBe(0);
+      expect(anyFavorite, `no race card's K/P line may hold the fixture's favorite, ${FAVORITE}`).toBe(0);
       await close();
     });
   });
