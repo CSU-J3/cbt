@@ -3744,3 +3744,24 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Oddities:** none. Claim 9 and Leg C read as expected.
 - **Flagged in the paste:** `/`'s markers message names only the env, and a build without the seam reds with it too; the Production `/` test reads whole cards, so a NEWS headline holding *Fixture* would red it; the key's `826` part repeats what Next's callback-source key already does; HO 824's probe script took a one-call fix outside the file list; Leg G reads after the push, so the struck line names it as the close's read in the paste.
 - **Also notes now run through HO 826.**
+
+**Also (HO 827): `/electoral`'s chamber-control cells leave when Kalshi closes the market, and when the cron hasn't written them in 24 hours.** Built on `464cc91`, on `827-review`.
+
+- **HO 826's FF, taken:** `main` went `9f88d6b..464cc91` by 12:52:46 PM MST Nov 20, no force. Production record `7951112115`, served from about 12:53:34 PM. `e2e-prod` `44806326017`: 235 passed and 1 flaky (*smoke › route crawl › news*, a watch); the job 10m10s, the second past 10 minutes (a flag). Prod's five reads from 12:54:54 PM agreed with the Preview's.
+- **The ruling, verbatim:** Corey, 1:37 PM MST Nov 20: *"lets add them when they come up & then drop them once the odds close. tho add that metric to the weekly report might be good?"*
+- **The chat's readings:** the market's own state decides, not CT's read of the result; "add them when they come up" is what the band already does; HO 826's 24-hour rule reaches the band; the weekly report is a question, filed as a line and not built.
+- **STEP 0 held** (`827-artifacts/step0-827.md`), all seven claims.
+  - Claim 6: all four `CONTROLH-2026` and `CONTROLS-2026` markets read `status: "finalized"`, closed on election night (10:02:53 and 9:46:52 PM MST Nov 3), last prices 0.999 and 0.001. Kalshi honours `status=open` (0 markets); an open market reads `active`.
+  - Claim 5: one caller, one renderer. With one chamber null, the band's cell shows a dash.
+- **§ 1 (`test`):** `check:control-close`, four cases through a stubbed `fetch`; the Production `/` leak test reads `.rc-kpline` (`826-ff-go.md`, ruling 2).
+- **§ 2 (`feat`):** `readControl` asks for `status=open` and counts only `active` markets; `getChamberControl` returns `updated_at`; `unlessStale` in `lib/electoral-rows.ts`; the page passes the band `unlessStale(control, updatedAt, nowMs)`. `ci`: the check runs in `ci.yml` after the odds-site allowlist.
+- **The legs:**
+  - A: `check:control-close` red on the base in cases 2, 3 and 4 (case 2 read *D 100% R 0%*), green on HEAD.
+  - B: the cron's read on the base gave *D 100% R 0%* for both chambers and on HEAD `{house: null, senate: null}`, a second apart at 1:45 PM.
+  - C: HEAD's build on the store still showed *D 100% R 0%*, the 1:15 PM blob prod's cron wrote with the base read, under 24 hours old. By the clock, `unlessStale` at `nowMs` + 25 h is `null`, at + 23 h the blob.
+  - Captures: the band absent at 1440 and 430; the list moves up by the band's height and margin (79 and 145 px), and nothing above it moves. The spec control: a *Fixture* headline reds the old form (6 cards) and not the new.
+  - Gates: typecheck and the e2e tsc green; `check:odds-sites` 13 of 13, `check:design-citations` OK, `check:control-close` 4 of 4. The crawl's five specs read 236 of 236 on HEAD's build (54 smoke, 12 odds-off, 120 narrow, 48 touch, 2 odds-fixture). Each commit builds alone, the test commit's check red 3 of 4 by design.
+- **The backlog:** line 16 struck, on Corey's ruling and Legs A and B; it reopens if prod's read after the first cron tick differs. The 2028 line gains the rule. The weekly report's control line is filed in QUEUED. Reconcile 283 / 398 / 681 at open, 283 / 399 / 682 at close.
+- **Oddities:** none. Claim 6 read as expected: the API honours `status`, and a settled market reads `finalized`.
+- **Flagged in the paste:** one closed chamber shows a dash cell, since the band is unchanged; the check reads the control through the exported entry point with a stubbed `fetch`, not a split parser; `README.md`'s list of `ci.yml`'s steps is now one short; HEAD's page shows the band until the first cron tick after the deploy; the captures and the spec control share one planted build.
+- **Also notes now run through HO 827.**
