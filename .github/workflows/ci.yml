@@ -72,5 +72,13 @@ jobs:
       - name: Odds-site allowlist
         run: npm run check:odds-sites
 
+      # HO 827 — a closed chamber-control market reads as no price, and a
+      # control blob the cron hasn't written in 24 hours is gone. Deterministic
+      # like the step above: it feeds lib/kalshi.ts's control read canned
+      # Kalshi payloads through a stubbed fetch (no network, no DB, no secret),
+      # so it rides the secretless PR path.
+      - name: Chamber-control close
+        run: npm run check:control-close
+
       - name: Build
         run: npm run build
