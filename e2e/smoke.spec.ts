@@ -1066,6 +1066,67 @@ test.describe("targeted interactions", () => {
     ).toEqual([]);
   });
 
+  // HO 828: /stale's footer counts the stalled committee bills its link opens,
+  // under the page's own filters. Before, it counted the whole committee backlog
+  // (`stage = 'committee'`, every filter ignored), so it read the same with the
+  // chamber toggle on or off. The two chambers split the bill types between
+  // them, so their counts sum to the unfiltered one on any corpus read at one
+  // moment. A footer that isn't drawn reads 0, so a day with no stalled
+  // committee bill reads 0, 0, 0 and the sum still holds. The footer is found by
+  // its words, old or new, so the old one is read too.
+  test("/stale's footer counts what its link opens (HO 828)", async ({ page }) => {
+    const footer = page.locator("main a").filter({ hasText: /\d more \w+ in committee/ });
+    const readFooter = async (path: string): Promise<number> => {
+      await page.goto(path, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      // The page awaits its reads before it renders, so the filter row and the
+      // footer arrive together.
+      await expect(page.locator("section.filter-chips"), `${path} should render`).toBeVisible({ timeout: 20_000 });
+      if ((await footer.count()) === 0) return 0;
+      const text = (await footer.first().textContent()) ?? "";
+      const digits = text.match(/([\d,]+)\s+more\b/)?.[1];
+      expect(digits, `${path}'s footer should open with a number: "${text}"`).toBeDefined();
+      return Number((digits ?? "").replace(/,/g, ""));
+    };
+
+    const all = await readFooter("/stale");
+    const allHref = all > 0 ? await footer.first().getAttribute("href") : null;
+    const allText = all > 0 ? ((await footer.first().textContent()) ?? "") : "";
+    const house = await readFooter("/stale?chamber=house");
+    const senate = await readFooter("/stale?chamber=senate");
+    // eslint-disable-next-line no-console
+    console.log(`[stale-footer] all=${all} house=${house} senate=${senate} href=${allHref ?? "none"}`);
+
+    // 1. The chambers sum to the unfiltered count, within max(25, 2% of it)
+    // (HO 828's review ruling). The three pages read three cache entries, each
+    // kept an hour and then served stale once while it refreshes, and the 60-day
+    // cutoff, date('now', '-60 days'), moves at 00:00 UTC. So a crawl after the
+    // move can read one count cached before it and two after, a day's bills
+    // apart on a correct page, until the entries refresh or the crons' flush of
+    // `bills` drops them. The tolerance still has teeth: the old count missed by
+    // the whole backlog (house + senate 36,558 against 18,279), and it misses
+    // whenever the backlog passes 25. A count the page caught and dropped reads
+    // 0, so a drop on one or two of the three pages reds the sum. Dropped on all
+    // three it reads 0, 0, 0 and passes: a count that always fails shows only in
+    // the server log's `[stale]` line.
+    const tolerance = Math.max(25, 0.02 * all);
+    expect(
+      Math.abs(house + senate - all),
+      `/stale's footer: house ${house} + senate ${senate} should be within ${tolerance.toFixed(2)} of the unfiltered ${all}`,
+    ).toBeLessThanOrEqual(tolerance);
+
+    // 2. The link opens ?stage=committee, and that page draws no footer: the
+    // list above it is that view, so "more" would be false.
+    if (allHref) {
+      expect(new URL(allHref, "https://cbt.invalid").searchParams.get("stage"), `the footer's link ${allHref}`).toBe("committee");
+    }
+    const committeePath = allHref ?? "/stale?stage=committee";
+    await readFooter(committeePath);
+    await expect(footer, `${committeePath} should draw no footer`).toHaveCount(0);
+
+    // 3. The words say the count is the stalled part of the backlog.
+    if (all > 0) expect(allText, "/stale's footer words").toMatch(/more stalled in committee/i);
+  });
+
   test("open a race district drawer → .rdm-panel opens and stays within viewport", async ({
     page,
   }) => {
