@@ -22,6 +22,7 @@ import {
   sanitizeTopics,
   STALE_FILTER_STAGES,
 } from "@/lib/queries";
+import { redactSecrets } from "@/lib/redact";
 
 type SearchParams = {
   topics?: string;
@@ -65,9 +66,33 @@ export default async function StalePage({
   if (includeCeremonial) carry.set("ceremonial", "1");
   if (cluster) carry.set("cluster", cluster);
 
+  // HO 828 (ruled in its review round): the footer's count sets `stage` itself,
+  // and unstable_cache keys on the argument, so the count takes the page's
+  // filters minus `stage`. One cache entry then serves /stale and every ?stage=
+  // view that reads the count (all but committee, below).
+  const { stage: _ignored, ...countFilters } = feedFilters;
+
   const [bills, committeeCount, watchedIds] = await Promise.all([
     getStaleBills(feedFilters, 50),
-    getStaleCommitteeCount(),
+    // HO 828: ?stage=committee draws no footer, so it doesn't read the count.
+    // Elsewhere a failed count drops the footer rather than failing the page
+    // (HO 828's review ruling): the count reads table rows, HO 828's legs saw
+    // it abort on a slow store, and uncaught here an abort is a 500 for the
+    // whole page. welcome/page.tsx's report snapshot is the precedent. It
+    // doesn't shorten the wait: a slow count still holds the page until it
+    // answers or aborts.
+    stage === "committee"
+      ? Promise.resolve(0)
+      : getStaleCommitteeCount(countFilters).catch((err: unknown) => {
+          console.error(
+            redactSecrets(
+              `[stale] getStaleCommitteeCount failed, footer dropped: filters=${JSON.stringify(countFilters)} ${
+                err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+              }`,
+            ),
+          );
+          return 0;
+        }),
     getWatchedBillIds(),
   ]);
 
@@ -229,24 +254,28 @@ export default async function StalePage({
           )}
         </div>
 
-        {/* HO 350 — the hidden committee backlog as a footer line (computed
-            live), with a one-click jump into the STAGE → COMMITTEE view. */}
-        <p
-          className="mt-3 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
-          style={{ color: "var(--text-dim)" }}
-        >
-          <Link
-            href={`/stale?${(() => {
-              const sp = new URLSearchParams(carry);
-              sp.set("stage", "committee");
-              sp.delete("page");
-              return sp.toString();
-            })()}`}
-            className="transition hover:text-[var(--text-secondary)]"
+        {/* HO 828 — the number is the stalled committee bills the link opens:
+            the stale gate at stage = 'committee', under the page's filters
+            (getStaleCommitteeCount). It isn't drawn on ?stage=committee, where
+            the list above is that view, or at 0, which a failed count reads. */}
+        {stage !== "committee" && committeeCount > 0 ? (
+          <p
+            className="mt-3 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-dim)" }}
           >
-            {committeeCount.toLocaleString()} more sit in committee →
-          </Link>
-        </p>
+            <Link
+              href={`/stale?${(() => {
+                const sp = new URLSearchParams(carry);
+                sp.set("stage", "committee");
+                sp.delete("page");
+                return sp.toString();
+              })()}`}
+              className="transition hover:text-[var(--text-secondary)]"
+            >
+              {committeeCount.toLocaleString()} more stalled in committee →
+            </Link>
+          </p>
+        ) : null}
       </main>
     </div>
   );

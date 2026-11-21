@@ -7368,18 +7368,39 @@ export const getStaleBills = unstable_cache(
   { revalidate: 3600, tags: ["bills", "news-breaking"] },
 );
 
-// HO 350 — the committee backlog size for the /stale footer line ("the committee
-// wall sits one click away under STAGE → COMMITTEE"). Raw stage='committee'
-// count (the whole backlog, ceremonial included), computed live. Forced onto the
-// covering idx_bills_dash_stage (is_ceremonial, stage, update_date) so it's an
-// index-only scan, not a fat-table scan (the statless-planner / 10s-abort rule).
+// HO 828 — /stale's footer count: the stalled committee bills its link opens,
+// under the page's own filters. It counts buildStaleWhere at stage = 'committee'
+// (a summary, the page's topics, search, chamber, and its ceremonial gate or
+// cluster, no action in 60 days, and the four types that can become law), so
+// the number moves with the page's controls. Until HO 828 it counted the whole
+// committee backlog (stage = 'committee' alone, on idx_bills_dash_stage). It no
+// longer reads that index.
+//
+// It sets stage itself, so a caller passes its filters minus `stage`: /stale
+// does (ruled in HO 828's review round). unstable_cache keys on the argument,
+// so a `stage` left in it would split one query across /stale and each ?stage=
+// view that reads it, an entry and a first read apiece; dropping it in here
+// can't merge them, since the key is made before this runs. Without it, one
+// entry serves every view that reads the count.
+//
+// It takes getStaleBillsCount's hint. The plan is SEARCH bills USING INDEX
+// idx_bills_summary_stage (stage=?): the index finds the ~18k committee rows
+// with a summary, and every other clause reads the table row. On prod at
+// 5d9c184 (HO 828's STEP 0) the unfiltered count took 2,532 ms on its first run
+// in a fresh process, then 70 and 68 ms. A second process read every filter's
+// count at 64 to 123 ms. So the slow run is the store's first touch of those
+// pages, not the steady cost. A covering index would drop the table reads, but
+// it's a schema write on prod for a footer's first read after a cold start, so
+// there isn't one (the chat's ruling on HO 828's HALT).
 export const getStaleCommitteeCount = unstable_cache(
-  async (): Promise<number> => {
+  async (filters: FeedFilters): Promise<number> => {
     const db = getDb();
-    const rs = await db.execute(
-      `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_dash_stage
-       WHERE stage = 'committee'`,
-    );
+    const { clauses, args } = buildStaleWhere({ ...filters, stage: "committee" });
+    const rs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage
+            WHERE ${clauses.join(" AND ")}`,
+      args,
+    });
     return Number(rs.rows[0]?.n ?? 0);
   },
   ["getStaleCommitteeCount"],
