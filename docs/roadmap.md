@@ -3765,3 +3765,39 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Oddities:** none. Claim 6 read as expected: the API honours `status`, and a settled market reads `finalized`.
 - **Flagged in the paste:** one closed chamber shows a dash cell, since the band is unchanged; the check reads the control through the exported entry point with a stubbed `fetch`, not a split parser; `README.md`'s list of `ci.yml`'s steps is now one short; HEAD's page shows the band until the first cron tick after the deploy; the captures and the spec control share one planted build.
 - **Also notes now run through HO 827.**
+
+**Also (HO 828): `/stale`'s footer counts the stalled committee bills its link opens, under the page's own filters.** Built on `5d9c184`, on `828-review`.
+
+- **HO 827's FF, taken:** `main` went `464cc91..5d9c184` by 2:27:09 PM MST Nov 20, no force. Production record `7952932073`, served from about 2:27:52 PM. `ci.yml` `44820423141`, its new step's check 4 of 4. `e2e-prod` `44820520382`: 236 of 236, the job 8m45s. The hero band left prod at the 3:15 PM tick (`cron_runs` 34661, `{house: null, senate: null}`).
+- **The chat's call:** count what the link opens, the first of `docs/backlog.md:18`'s two ways out: the page and its link are about stalls, bills only since HO 823.
+- **STEP 0 HALTED at claim 7** (`828-artifacts/step0-828.md`). The unfiltered stalled-committee count's first run in a fresh process took 2,532 ms, past the 2 s bound, then 70 and 68 ms.
+  - The plan was `SEARCH bills USING INDEX idx_bills_summary_stage (stage=?)`. The index finds about 18k committee rows, and the table supplies the other columns.
+  - A second process 24 s later read every count at 64 to 123 ms. Claims 1 to 6 and 8 held.
+- **The ruling** (`828-halt-ruling.md`, the chat, about 5:30 PM MST Nov 20): go on, on the plan as it is.
+  - The 2 s bound was the chat's guess, and too tight: the store aborts at 10 s, and the slow run is the store's cold pages.
+  - Claim 7's bound became a first run past 5 s or a warm run past 500 ms.
+  - No covering index (a schema write on prod for a cold first read); guard 2 stands.
+  - Leg D reports first and warm runs apart, and a new Leg E times the page.
+- **§ 1 (`test`):** smoke's *`/stale`'s footer counts what its link opens*. The chambers' numbers sum to the unfiltered one (within max(25, 2%) since the review ruling), the link opens `?stage=committee`, that page draws no footer, and the words read *more stalled in committee*.
+- **§ 2 (`feat`):** `getStaleCommitteeCount(filters)` counts `buildStaleWhere({ ...filters, stage: "committee" })` on `idx_bills_summary_stage`. The page passes its filters minus `stage`, so one cache entry serves every view that reads the count, and draws the footer only off `?stage=committee` and above 0. A failed count drops the footer, not the page. `ci`: the crawl's comment, re-measured, reads 237.
+- **The legs:**
+  - A: red against prod at `5d9c184`, with 18,279 on all three pages (5:29 PM, and 9:36 PM with the tolerance). Green on HEAD's build: 9,559 + 5,187 = 14,746.
+  - B: on `7872762`'s build the footer matched a guarded `SELECT` of the gate on six pages: 14,746, 9,559, 5,187, ceremonial 15,098, `healthcare` 2,708, `tax` 1,525. The link drew 50 rows.
+  - C: `?stage=committee` and `?q=119-hr-1515` (0 stalled in committee) draw no footer. The base's build drew one on both.
+  - D: at 5:39 PM, in a fresh process on a store Legs A to C had warmed, first runs read 70 to 508 ms and warm runs 70 to 159 ms. In a store-wide slow spell at 6:04 to 6:06 PM (old count 4,958 ms, badge 9,934 ms) the unfiltered first run hit the 10 s abort twice, then read 12,786 ms: past claim 7's bound (flagged). An uncached `/stale` answered 500 on the base's build then, and 200 at 11.2 s on HEAD's.
+  - E: `/stale`'s cold first byte, HEAD against the base: 4.18 s against 2.00 s (flagged), then 0.78 s against 0.58 s. Warm, both under 40 ms.
+  - Gates, on both rounds' tips: both typechecks and the three `check:` scripts green. The crawl's five specs read 237 of 237 on HEAD's build (55 smoke, 12 odds-off, 120 narrow, 48 touch, 2 odds-fixture). Each commit builds alone; the test commit is red on its own by design.
+- **The review ruling** (`828-review-ruling.md`, the chat, about 8:45 PM MST Nov 20): two changes before the go. Flag 2 accepted, flag 3 ratified.
+  - A (`feat`, from flag 1): the page catches the count. A throw logs one `console.error` line and reads 0, so the page renders without the footer. Planted to throw, uncommitted, HEAD answered 200 with one line; the base and the old `feat` 500.
+  - B (`test`, from flag 4): the sum holds within max(25, 2% of it), since three caches and a cutoff that moves at 00:00 UTC can put a correct page a day's bills off. Red on prod at 9:36 PM (18,279 off, 365.58 allowed), green on HEAD.
+  - The cache key (`feat`, ruled after, on a review-round flag): it carried the page's `stage`, which the count replaces. The page now passes its filters minus `stage`; on cold builds `/stale` and its three stage views left four count entries before, one after.
+  - Both rebuilt, the three above replayed, pushed with `--force-with-lease`.
+  - The first rebuilt HEAD's crawl read 236: in a slow spell at about 9:03 PM the footer test's `?chamber=house` passed 45 s with no `[db]` line, and the HO 823 test's `?stage=floor` count aborted twice and was caught. Runs 2 to 5 read 237, bar two `/electoral` stalls in run 4.
+- **The backlog:**
+  - Line 18 struck, on Legs A and B. It reopens if the crawl's test reads red on prod.
+  - Line 132 (131 now) corrected: no site forces `idx_bills_dash_stage` since HO 828, so its absence changes plans, not answers. It stays open: no `migrate.ts` database was to hand to re-read. Its `migrate.ts` anchors read `:1554` and `:1638`.
+  - FIT & FINISH gains the dash-cell line, and `README.md` lists the chamber-control check (`827-ff-go.md`, rulings 1 and 2).
+  - Reconcile 283 / 399 / 682 at open, 283 / 400 / 683 at close.
+- **Oddities:** none filed. Claim 7's plan read as the chat expected. The 6:04 PM slow spell reached the base's build too; it's in the legs and the flags.
+- **Flagged in the pastes:** the slow-spell first run (ruled: A); Leg E (accepted); `?stage=committee` skips the count (ratified); the sum across three caches (ruled: B); line 132's title and *Reads if never done*; the FIT & FINISH stamp; no SKILL entry of the count's own. The review round adds the 9:03 PM crawl, the count's cache key (ruled: fixed), and that a count dropped on all three pages passes the test.
+- **Also notes now run through HO 828.**

@@ -111,8 +111,8 @@ amendments, nominations, votes, and race ratings, and one weekly, the weekly rep
 (Mon 09:30 UTC).
 
 GitHub Actions carries CI, not data: `ci.yml` (typecheck, the odds-site allowlist
-check, and build), `e2e-prod.yml` (the scheduled and post-deploy production smoke
-crawl), and `design-citations.yml`.
+check, the chamber-control close check, and build), `e2e-prod.yml` (the scheduled
+and post-deploy production smoke crawl), and `design-citations.yml`.
 
 ## Project structure
 
