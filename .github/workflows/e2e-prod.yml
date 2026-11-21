@@ -210,6 +210,16 @@ jobs:
     # stays at 236 (54 smoke, 12 odds-off, 120 narrow, 48 touch, 2
     # odds-fixture); and `/?fixture=max`'s four Preview tests (15.2 s locally at
     # one worker) take `narrow-preview` to 176. Each is its ref's first reading.
+    # RE-MEASURED (HO 828), the same read. `Run prod smoke crawl` against prod
+    # at `5d9c184` (HO 827's FF): 236 tests (54 smoke, 12 odds-off, 120 narrow,
+    # 48 touch, 2 odds-fixture), all passed, in 8m12s, whole job 8m45s
+    # (44820520382), its install 16 s. Narrow, touch and the odds fixture on
+    # `narrow-preview` at `5d9c184`: 176 tests (120 narrow, 48 touch, 8
+    # odds-fixture) in 6m05s, whole job 6m45s (44818395355, the Preview of
+    # `827-review`), its install 19 s. HO 828 adds one test on this job and
+    # none on that one: smoke's `/stale`'s footer counts what its link opens
+    # (four page loads, about 2 s locally), so the crawl reads 237 (55 smoke)
+    # from HO 828's FF and `narrow-preview` stays at 176.
     # THE CAP STAYS AT 20 while the whole job stays under 10 minutes; past that,
     # flag it. Re-measure here before adding a fourth width or caching the
     # install.
@@ -343,6 +353,7 @@ jobs:
         # three fixture cards, below, since a called seat's card carries no
         # price; odds-off's `/` ON control left for that reason, so this job
         # still reads 236.
+        # HO 828 — smoke gains `/stale`'s footer test, so this job reads 237.
         run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts e2e/narrow.spec.ts e2e/touch.spec.ts e2e/odds-fixture.spec.ts --grep-invert "@nonci" --retries=2
 
       # HO 822 — KEYED ON THE TRACES EXISTING, like the #418 step below, and for
