@@ -211,3 +211,27 @@ odds-off's `/electoral` tests open LIST rows until one shows a Kalshi line. The 
 - **The market's close time didn't say it either.** On 465 of 469 rows Kalshi's `close_time` is the scheduled 2027-11-03. A market that leaves the open feed keeps its row at its last price: `S-AK-2026`'s since 7:15 PM MST Nov 17, and NY-01's since Nov 5. So `kalshiActive` reads every one of them active.
 
 **The rule:** a test whose precondition is live data says when that data runs out, and the store's close time isn't that day. Anchor a standing gate on something the tree controls, such as a fixture, or write the day the anchor ends where the next reader will see it.
+
+## Three slow spells in one evening, and no one cause (HO 829, Nov 2026)
+
+On Nov 20, scripts and crawls on the PC reading prod's store went slow three times: 6:04 to 6:06, 9:03 and 10:03 PM MST. Each was gone within minutes, and each began 3 to 4 minutes past an hour. Those were the only hours the PC read the store at that minute.
+- **Production's crons couldn't say.** Every run near a spell took its slot's usual time, but none was in flight during any of the three. The top-of-hour runs had ended minutes before, and the `:10` runs started after (`docs/probes/829-store-stalls.md`, A3). A cron log sees the store only while a cron runs.
+- **The three lean their own ways, none far.**
+  - **At 6:04 to 6:06, to the store.** Every statement on the PC slowed, the page-reading counts far more (at 6:05, a `SELECT 1` 397 ms, about twice its norm, beside 5 to 10 s counts). Seven 10 s aborts landed across five processes, and Vercel's one store request took 3.8 s.
+  - **At 9:03, both ways.** A count's two 10 s aborts came first. Then Windows logged Tcpip 4231, documented as ephemeral ports exhausted, 0.29 s after the request that never answered.
+  - **At 10:03, weakly away from the store:** no abort through two 45 s hangs.
+- **What the evening didn't keep:**
+  - Task Scheduler's and DNS's history were switched off.
+  - Vercel's functions made no store request in two of the three spells.
+  - The one request in the first, 3.8 s on prod `/stale`, is about 2.9 times that route's other evening hours, but the day's 1 to 3 PM hours ran higher, so one request settles nothing.
+
+**The rule:** when a read goes slow on the PC, take three readings at the same moment, not one after another:
+- a count that reads table pages;
+- a `SELECT 1` every 250 ms beside it;
+- a prod page that reads the store uncached, timed by Vercel's own duration for it, since the PC's first byte crosses the PC's network too.
+
+How each cause reads:
+- **A store slow in its page reads** slows the count and the prod page.
+- **A store slow at its front end** slows all three.
+- **A slow PC network** slows the PC's two.
+- **A stuck local process** slows none of them.

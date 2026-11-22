@@ -3801,3 +3801,28 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Oddities:** none filed. Claim 7's plan read as the chat expected. The 6:04 PM slow spell reached the base's build too; it's in the legs and the flags.
 - **Flagged in the pastes:** the slow-spell first run (ruled: A); Leg E (accepted); `?stage=committee` skips the count (ratified); the sum across three caches (ruled: B); line 132's title and *Reads if never done*; the FIT & FINISH stamp; no SKILL entry of the count's own. The review round adds the 9:03 PM crawl, the count's cache key (ruled: fixed), and that a count dropped on all three pages passes the test.
 - **Also notes now run through HO 828.**
+
+**Also (HO 829): a failed `/stale` footer count leaves a hidden marker the crawl reads, and a probe reads the Nov 20 stalls as *can't say*.** Built on `7cc2fc9`, on `829-review`.
+
+- **HO 828's FF, taken:** `main` went `5d9c184..7cc2fc9` at 4:43:40 PM MST Nov 21, no force. Production record `7971090422`, served from about 4:44:23 PM. `ci.yml` `44963193814`. `e2e-prod` `44963251949`: 237 of 237, the job 9m32s. Prod's footers read 14,734, 9,557 and 5,177, each equal to the store's count.
+- **A correction to HO 828's block** (`828-ff-go.md`, ruling 4): it says the `?stage=floor` count *aborted twice* at about 9:03 PM. The server log carries the abort, a `[db] timeout, retrying` line and then the `[stale]` line with a `TimeoutError`, but no clock. Its time rests on the test's 20.5 s and the tests' order, not on a timed line.
+- **The probe** (`docs/probes/829-store-stalls.md`, read-only, `cron_runs` only): ***can't say.***
+  - Every Production cron within 15 minutes of a stall ran inside its slot's p95, as in three controls, so § 1.C's wording reads *the PC's side*. But none was in flight during any stall's span, so the test can't fire (guard 3).
+  - Stall 1 (6:04 to 6:06 PM) leans to the store. Every statement on the PC slowed, the counts far more. Seven 10 s aborts landed across five processes. Vercel's one store request then took 3.8 s, about 2.9 times prod `/stale`'s other evening hours.
+  - Stall 2 (9:03 PM) reads both ways: the `?stage=floor` count's two 10 s aborts came first, then Windows logged Tcpip 4231 (documented as ephemeral ports exhausted) 0.29 s after the request that never answered.
+  - Stall 3 (10:03 PM) leans weakly away from the store: no abort through two 45 s hangs.
+  - All three began 3 to 4 minutes past an hour, the only hours the PC read the store at that minute.
+  - Beyond § 1's letter: a per-slot baseline beside the route's, and Vercel's own record of the functions' store requests, read through the MCP.
+  - The chat's guesses. The top-of-hour crons had ended 2.6 to 3.8 minutes before each stall and ran at their usual times, so they weren't load during it; an after-effect isn't ruled out. The Nov 22 restart came 27 hours after the last stall and took none of the evening's logs.
+- **§ 2 (`test`):** each page the footer test reads must carry no `[data-stale-count="failed"]`, in a soft check that names the page and the `[stale]` line. It's green on its own: no marker existed yet.
+- **§ 3 (`feat`):** the catch resolves to `null`, which renders `<p hidden data-stale-count="failed" />` where the footer would be. A number renders as before; `?stage=committee` reads no count and draws no marker.
+- **The legs:**
+  - A: planted to throw, HEAD answered 200 on all three pages, with no footer, the marker and one `[stale]` line each, and the test red on all three, by name. The base with the same plant: green at 0, 0, 0, the fault. Unplanted HEAD: green, `all=14753 house=9559 senate=5194`.
+  - B: `/stale`'s HTML from HEAD and the base holds the same tokens. Build hashes, `nowMs` and the flight's order differ, the last as much between two fetches of the base. Planted and unplanted at a count of 0: 0 pixels differ at 1440 and 430, and the marker computes `display: none` at 0×0.
+  - C: narrow 120, touch 48. The crawl's five specs read 237 of 237 on HEAD's build, and met no stall.
+- **Reviewed before the push** by a workflow: five reviewers, then a skeptic per finding. 50 of 52 findings stood, many the same slip seen twice. One was in the test's comment, which overclaimed "reds once per page" for a count that stalls, and the test commit was amended. Two confirmed SKILL edits already in the tree. The rest were wording and figures in the write-up and docs, all applied.
+- **Five commits, not four:** HO 824 committed its probe script as `chore` and its write-up as `docs`, and kinds aren't mixed, so the script rides its own `chore`.
+- **The backlog:** one OPEN LOOPS line for the stalls, owner Code, with the verdict and what would settle it. Reconcile 283 / 400 / 683 at open, 284 / 400 / 684 at close.
+- **Oddities:** one entry, the three stalls and the rule of three readings in one minute.
+- **Flagged in the paste:** the Vercel CLI's two device-login flows; the two readings beyond § 1's letter; SKILL has no probes list, so the probe is cited in the bounded-DB block; the soft check waits 15 s per failing page (47.9 s planted, under the 60 s test timeout); half of ruling 4.
+- **Also notes now run through HO 829.**
