@@ -1074,13 +1074,29 @@ test.describe("targeted interactions", () => {
   // moment. A footer that isn't drawn reads 0, so a day with no stalled
   // committee bill reads 0, 0, 0 and the sum still holds. The footer is found by
   // its words, old or new, so the old one is read too.
+  //
+  // HO 829: a count the page caught and dropped isn't a 0. It leaves a hidden,
+  // empty marker where the footer would be, `[data-stale-count="failed"]`, and
+  // each page read here must not carry it. The check is soft: a count that
+  // throws at once reds on each of the three pages (planted: 47.9 s of the 60 s
+  // budget, each check waiting out the 15 s expect timeout). One that stalls
+  // into the store's 10 s abort and retry holds each page about 20 s first, so
+  // the test timeout can end the test on the second page: one red and a
+  // timeout, still a failure.
   test("/stale's footer counts what its link opens (HO 828)", async ({ page }) => {
     const footer = page.locator("main a").filter({ hasText: /\d more \w+ in committee/ });
+    const failedCount = page.locator('[data-stale-count="failed"]');
     const readFooter = async (path: string): Promise<number> => {
       await page.goto(path, { waitUntil: "domcontentloaded", timeout: 45_000 });
       // The page awaits its reads before it renders, so the filter row and the
       // footer arrive together.
       await expect(page.locator("section.filter-chips"), `${path} should render`).toBeVisible({ timeout: 20_000 });
+      await expect
+        .soft(
+          failedCount,
+          `${path}: the footer's count failed and the page dropped it (a [data-stale-count="failed"] marker is in the DOM); the server log's [stale] line has the error`,
+        )
+        .toHaveCount(0);
       if ((await footer.count()) === 0) return 0;
       const text = (await footer.first().textContent()) ?? "";
       const digits = text.match(/([\d,]+)\s+more\b/)?.[1];
@@ -1104,10 +1120,11 @@ test.describe("targeted interactions", () => {
     // apart on a correct page, until the entries refresh or the crons' flush of
     // `bills` drops them. The tolerance still has teeth: the old count missed by
     // the whole backlog (house + senate 36,558 against 18,279), and it misses
-    // whenever the backlog passes 25. A count the page caught and dropped reads
-    // 0, so a drop on one or two of the three pages reds the sum. Dropped on all
-    // three it reads 0, 0, 0 and passes: a count that always fails shows only in
-    // the server log's `[stale]` line.
+    // whenever the backlog passes 25. A count the page caught and dropped draws
+    // no footer, so it reads 0 here too, and a drop on one or two of the three
+    // pages reds the sum. Dropped on all three it reads 0, 0, 0 and the sum
+    // holds, so the sum alone can't see a count that always fails: the marker
+    // check in readFooter is what reds it (HO 829).
     const tolerance = Math.max(25, 0.02 * all);
     expect(
       Math.abs(house + senate - all),
