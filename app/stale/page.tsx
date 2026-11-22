@@ -80,10 +80,11 @@ export default async function StalePage({
     // it abort on a slow store, and uncaught here an abort is a 500 for the
     // whole page. welcome/page.tsx's report snapshot is the precedent. It
     // doesn't shorten the wait: a slow count still holds the page until it
-    // answers or aborts.
+    // answers or aborts. HO 829: a failed count is null, not 0, so the render
+    // below can tell it from an empty count.
     stage === "committee"
-      ? Promise.resolve(0)
-      : getStaleCommitteeCount(countFilters).catch((err: unknown) => {
+      ? Promise.resolve<number | null>(0)
+      : getStaleCommitteeCount(countFilters).catch((err: unknown): null => {
           console.error(
             redactSecrets(
               `[stale] getStaleCommitteeCount failed, footer dropped: filters=${JSON.stringify(countFilters)} ${
@@ -91,7 +92,7 @@ export default async function StalePage({
               }`,
             ),
           );
-          return 0;
+          return null;
         }),
     getWatchedBillIds(),
   ]);
@@ -257,8 +258,17 @@ export default async function StalePage({
         {/* HO 828 — the number is the stalled committee bills the link opens:
             the stale gate at stage = 'committee', under the page's filters
             (getStaleCommitteeCount). It isn't drawn on ?stage=committee, where
-            the list above is that view, or at 0, which a failed count reads. */}
-        {stage !== "committee" && committeeCount > 0 ? (
+            the list above is that view, or at 0.
+            HO 829 — a count that failed (null) draws no footer either, but
+            leaves a hidden, empty marker in its place. Before HO 828 that
+            failure was a 500 the crawl caught; caught, it read as 0 and
+            vanished. The marker gives the crawl a way to see it again
+            (e2e/smoke.spec.ts, the footer test) while a visitor or a screen
+            reader still meets nothing: `hidden` takes no space and isn't read.
+            The server log's [stale] line carries the error. */}
+        {stage === "committee" ? null : committeeCount === null ? (
+          <p hidden data-stale-count="failed" />
+        ) : committeeCount > 0 ? (
           <p
             className="mt-3 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
