@@ -3826,3 +3826,36 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Oddities:** one entry, the three stalls and the rule of three readings in one minute.
 - **Flagged in the paste:** the Vercel CLI's two device-login flows; the two readings beyond § 1's letter; SKILL has no probes list, so the probe is cited in the bounded-DB block; the soft check waits 15 s per failing page (47.9 s planted, under the 60 s test timeout); half of ruling 4.
 - **Also notes now run through HO 829.**
+
+**Also (HO 830): a bill whose detail lists a law is staged `enacted` by both writers, whatever its latest action says.** Built on `c5341bc`, on `830-review`.
+
+- **HO 829's FF, taken:** `main` went `7cc2fc9..c5341bc` at 3:43:58 PM MST Nov 22, no force. Production record `7986241007`, served from about 3:44:54 PM. `e2e-prod` `45079405099`: 237 of 237, the job 9m14s. Prod's footers read 14,753, 9,559 and 5,194, with no marker.
+- **The Vercel CLI:** the two device logins during HO 829's probe were Corey's own approvals (his words, 6:17 PM MST Nov 22: *"i approved that when it asked"*).
+- **STEP 0:** all nine claims held, and none HALTed.
+  - 144 bills list a law in their detail (`$.laws`), all at `enacted`, and they're the 144 on Congress.gov's list (142 public, 2 private). `computeStage` reads one of them short: `119-hr-1043`, at `committee`, from its report.
+  - Five bills at `enacted` list no law: four House bills signed Nov 20 and not yet numbered, whose text reads `enacted`, and `119-sres-611`.
+  - The summarizer's row doesn't carry the detail, so § 2 reads `$.laws` in its selector. Prod's plan is the same with the column.
+  - Claim 8, read only: the pill dates the stage `stage_observed_at ?? latest_action_date`, and the store holds no signing date. The summary's *If enacted* is the prompt's own frame, and the prompt is given the latest action, not the law. The one-bill re-summary is `reset-bill-671.ts --write`. These readings are on backlog line 35; nothing was built.
+- **§ 1 (`test`):** `check:stage-law`, six cases on `119-hr-1043`'s own text and law, red at its own commit by design. The function is looked up by name, so that commit builds.
+- **§ 2 (`feat`):** `computeStageWithLaws` (`lib/enums.ts`): a non-empty `laws` is `enacted`, and anything else is `computeStage`.
+  - The sync passes `detail.laws`, which `DetailBill` now types.
+  - The summarizer's selector reads `json_extract(raw_json, '$.laws')`, parsed back to an array. Its queue sort stays on `computeStage`.
+- **§ 3 (`ci`):** a *Stage of a law* step after *Chamber-control close*. README's CI list names it.
+- **The legs:**
+  - A: the check reads 6 of 6 red at `532ae80` and green from `c2a18be` on. The base's expression on cases 1, 5 and 6 reads `committee`, `pend` and `advance`; the new function reads `enacted`, `noop` and `noop`.
+  - B: all 144 law bills compute `enacted` from their stored rows. `computeStage` alone reads 143, with `119-hr-1043` at `committee`.
+  - C: of the 149 at `enacted`, one reads below: `119-sres-611`, at `floor`.
+  - D: on `119-hr-1043`'s stored row, dry, the decision reads `pend` before and `noop` after. With `committee` pending it reads `advance` before and `noop` after.
+  - E: the 812 check (`--label ho830`) reads 0 short and 0 missing. Its 4 CT-only rows are the Nov 20 signings.
+  - The gates: tsc and the e2e tsc with `.next` cleared, and the four static checks; a cold build with 0 warnings and 64 routes, each commit building on its own; the crawl's five specs, 237 of 237 on `d4665ad`'s build at `--retries=0`, with no stall.
+- **Reviewed before the push** by a workflow: four reviewers, then a skeptic for each. 16 of 17 findings stood, 11 of them distinct. The fixes: `computeStage`'s header comment no longer calls it the single source of truth, reworded in place so it stays at `:97`, and the feat commit amended; `backlog.md:135`'s anchor, which the feat moved; and five corrections to the STEP 0 and leg write-ups, two of them a guard tally 2 short. The rest are flags.
+- **Oddities:** none. Leg C lists only `119-sres-611`, backlog line 34's.
+- **The backlog:** line 35 is rewritten, not struck. Its stage half is done, and HO 813's two leftovers remain, with claim 8's readings. Line 135's `lib/enums.ts:214` becomes `:233`, a ride-along. Reconcile 284 / 400 / 684 at open and at close.
+- **Flagged in the paste:**
+  - the line came with no hash;
+  - Leg E can't fail on this change, since it read 0 short before the fix while the hand fix held;
+  - the queue was empty at STEP 0, so the added column was timed on a stand-in;
+  - `scripts/summarize.ts:47`'s sample print still shows `computeStage`;
+  - SKILL's STAGE PIPELINE entry leaves out the date's fallback;
+  - comments and anchors the change made stale, outside the commits' files: `lib/summarize.ts:39-41`, `laws-vs-official-812.ts:17`, `classify-ceremonial.ts:93`, and oddities' HO 812 entry (`:163`, `:169`).
+- **Also notes now run through HO 830.**
