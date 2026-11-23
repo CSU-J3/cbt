@@ -74,14 +74,14 @@ export function stageRank(stage: string | null | undefined): number {
   return ALLOWED_STAGES.indexOf(stage as Stage);
 }
 
-// HO 383: deterministic stage from the bill's latest_action_text — the single
-// source of truth for stage, ported from the LLM summarization prompt's stage
-// rules (lib/summarize.ts SYSTEM_PROMPT). Both write paths now derive stage from
-// this (summarize-runner's slot write; sync's gap-window refresh) instead of
-// trusting the LLM's emitted `stage`, which only runs at summarize time and so
-// leaves stored stage stale between an action advance and re-summarization (the
-// 119-s-2393 "Presented to President." bill stuck at `floor`). Matching is
-// case-insensitive; returns the FIRST rule that hits, in progression order.
+// HO 383: deterministic stage from the bill's latest_action_text, ported from
+// the LLM summarization prompt's stage rules (lib/summarize.ts SYSTEM_PROMPT).
+// Both write paths derive stage from it (HO 830: through computeStageWithLaws,
+// below, where a law listed in the detail outranks it) instead of trusting the
+// LLM's emitted `stage`, which only runs at summarize time and so leaves stored
+// stage stale between an action advance and re-summarization (the 119-s-2393
+// "Presented to President." bill stuck at `floor`). Matching is case-insensitive;
+// returns the FIRST rule that hits, in progression order.
 //
 // Pure function of the action text. The prompt's two monotonicity guards split:
 // guard (b) — post-passage procedural motions imply a floor vote already
@@ -174,6 +174,25 @@ export function computeStage(latestActionText: string | null | undefined): Stage
   if (t.includes("referred to")) return "committee";
   // 7. default
   return "introduced";
+}
+
+// HO 830: the stage both writers store. A bill whose detail lists a law
+// (Congress.gov's `laws`, kept in raw_json as `$.laws`) is `enacted`, whatever
+// its latest action says; anything else is computeStage on the latest action.
+// computeStage reads the latest action alone, and paperwork filed after a bill
+// became law can be that action: `119-hr-1043` became P.L. 119-68 on
+// 2025-12-29, and on 2026-02-11 a Senate committee filed its written report,
+// so computeStage reads `committee` (the backlog's *a law can read short of
+// `enacted`*; HO 812's probe found it against Congress.gov's official list,
+// docs/probes/812-laws-vs-official.md). The sync passes the detail's `laws`
+// (lib/sync.ts), the summarizer its row's `$.laws` (lib/summarize-runner.ts);
+// the summarizer's queue sort stays on computeStage.
+export function computeStageWithLaws(
+  latestActionText: string | null | undefined,
+  laws: unknown,
+): Stage {
+  if (Array.isArray(laws) && laws.length > 0) return "enacted";
+  return computeStage(latestActionText);
 }
 
 // Display-name maps used by native `title` attributes for readability (HO

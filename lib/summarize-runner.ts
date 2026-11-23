@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
-import { computeStage, stageRank } from "./enums";
+import { computeStage, computeStageWithLaws, stageRank } from "./enums";
 import { isRetryable, withGeminiRetry } from "./gemini-retry";
 import {
   fetchBillContext,
@@ -123,6 +123,18 @@ export function decideStage(
   return "pend";
 }
 
+// HO 830: the selector's `laws` column is json_extract's JSON text for
+// raw_json's `$.laws`, NULL when the detail lists none. Parsed back to the
+// array computeStageWithLaws reads; anything else reads as no law.
+function lawsOf(v: unknown): unknown {
+  if (typeof v !== "string") return null;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
+}
+
 export async function runSummarize(
   options: SummarizeOptions = {},
 ): Promise<SummarizeStats> {
@@ -173,12 +185,16 @@ export async function runSummarize(
   // ~null-count partial-index scan that also serves the ORDER BY — the statless
   // Turso planner won't take the partial index unhinted. The app-side priority
   // sort below is unchanged; only the corpus scan is corrected.
-  const sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text, stage, pending_stage
+  // HO 830: the row also carries the detail's `laws` (raw_json's `$.laws`, as
+  // JSON text), so the stage write can read a listed law; the plan is unchanged
+  // (SCAN bills USING INDEX idx_bills_summarize_queue, read on prod).
+  const sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text, stage, pending_stage,
+           json_extract(raw_json, '$.laws') AS laws
     FROM bills INDEXED BY idx_bills_summarize_queue WHERE ${where.join(" AND ")} ORDER BY update_date DESC`;
   const rs = await db.execute({ sql, args });
 
   const eligible: Array<
-    BillRow & { oldStage: string | null; pendingStage: string | null }
+    BillRow & { oldStage: string | null; pendingStage: string | null; laws: unknown }
   > = rs.rows.map((r) => ({
     id: r.id as string,
     congress: r.congress as number,
@@ -190,6 +206,8 @@ export async function runSummarize(
     // HO 239: the bill's currently-pending downgrade proposal, if any. A
     // second consecutive proposal of this same stage confirms the move.
     pendingStage: (r.pending_stage as string | null) ?? null,
+    // HO 830: parsed back to the array computeStageWithLaws reads; absent → null.
+    laws: lawsOf(r.laws),
   }));
 
   // HO 383: stable sort by computed-stage rank DESC (enacted/president first).
@@ -300,8 +318,10 @@ export async function runSummarize(
       // HO 383: stage is derived deterministically from latest_action_text via
       // computeStage — NOT from the LLM's result.stage (still emitted by the
       // prompt, now ignored; stripping it from the prompt is banked). Same
-      // helper as sync, so the two write paths can't disagree.
-      const computedStage = computeStage(bill.latest_action_text);
+      // helper as sync, so the two write paths can't disagree. HO 830: that
+      // helper is computeStageWithLaws, so a listed law reads `enacted` and a
+      // law whose latest action is later paperwork never pends a downgrade.
+      const computedStage = computeStageWithLaws(bill.latest_action_text, bill.laws);
       const ceremonialArg =
         result.is_ceremonial === null ? null : result.is_ceremonial ? 1 : 0;
       // HO 239: the stage-monotonicity guard sits on the one slot-write point

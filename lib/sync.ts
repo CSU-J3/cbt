@@ -22,7 +22,7 @@
 import { classifyCluster } from "./cluster-patterns";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
-import { computeStage, stageRank } from "./enums";
+import { computeStageWithLaws, stageRank } from "./enums";
 import { fetchError, redactSecrets } from "./redact";
 
 // HO 790: the one seam, for the legs' stub on 127.0.0.1 (scripts/diagnostic/sync-frontier-790.ts). Unset everywhere
@@ -82,6 +82,9 @@ type DetailBill = {
   cosponsors?: { count?: number };
   textVersions?: { count?: number };
   summaries?: { count?: number };
+  // HO 830: the laws a bill became, e.g. [{"number":"119-68","type":"Public Law"}];
+  // absent until it has one. A listed law stages the bill `enacted`.
+  laws?: Array<{ number?: string; type?: string }>;
 };
 
 type ListResponse = {
@@ -400,8 +403,9 @@ async function upsertBill(
   // (b) advance monotonically only (never regress; the runner still owns
   // LLM-disagreement downgrades via its pending logic). A brand-new bill (no
   // prior row) keeps the INSERT default stage (NULL) and is staged by the
-  // runner at first summary, exactly as before.
-  const computedStage = computeStage(detail.latestAction?.text ?? null);
+  // runner at first summary, exactly as before. HO 830: a bill whose detail
+  // lists a law computes `enacted`, whatever its latest action says.
+  const computedStage = computeStageWithLaws(detail.latestAction?.text ?? null, detail.laws);
   const prior = (
     await db.execute({
       sql: `SELECT stage, update_date, title, latest_action_date, latest_action_text,
