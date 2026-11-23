@@ -80,5 +80,13 @@ jobs:
       - name: Chamber-control close
         run: npm run check:control-close
 
+      # HO 830 — a bill whose detail lists a law stages `enacted`, whatever its
+      # latest action says, and the summarizer doesn't pend its downgrade.
+      # Deterministic like the two steps above: it calls lib/enums.ts's
+      # computeStageWithLaws and the summarizer's decideStage on canned values
+      # (no network, no DB, no secret), so it rides the secretless PR path.
+      - name: Stage of a law
+        run: npm run check:stage-law
+
       - name: Build
         run: npm run build
