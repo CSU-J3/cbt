@@ -67,7 +67,8 @@
     "test:e2e": "playwright test",
     "check:odds-sites": "tsx scripts/check-odds-sites.ts",
     "check:design-citations": "tsx scripts/check-design-citations.ts",
-    "check:control-close": "tsx scripts/check-control-close.ts"
+    "check:control-close": "tsx scripts/check-control-close.ts",
+    "check:stage-law": "tsx scripts/check-stage-law.ts"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",
