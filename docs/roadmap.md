@@ -3884,3 +3884,28 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **The docs:** the Nov 20 slow-spells line (HO 829) gains Production's Nov 23 reading and HO 831's counts, and stays open on all three spells, since an index-only count also slowed in the 6:05 probe. The HO 786 line on the two indexes `migrate.ts` doesn't make names the new one. Two lines are new: ruling 3's partial-index label, and ruling 1's `idx_lda_names_kind_name` rebuild. Reconcile 284 / 400 / 684 at open, 286 / 400 / 686 at close. Oddities: the warm count that aborts cold, and the label.
 - **Flagged in the paste:** the ruling came with no hash; B by the label where A was index-only in fact, at 9.4 MB more; the `?stage=…&q=…` count's 3.6 s, from before this HO; `app/stale/page.tsx:79`'s comment (guard 3) and `getFeedBills`' comment on the planner's `?stage=` pick; SKILL's HO 241 `getStaleCount` and HO 340 warm-timing sentences; the 2:05 PM abort read by route, not by statement; the Nov 20 line kept open, not narrowed; the cold cost unmeasured.
 - **Also notes now run through HO 831.**
+
+**Also (HO 832): a read-only probe. `idx_bills_summary_stage_stale` changed eight `getFeedBills` statement shapes, one of them for the worse; `/stale`'s row list reads in tens of ms; `/bills`' search count under a stage runs in the wrong order.** Built on `79484ad`, on `832-review`.
+
+- **HO 831's FF, taken:** `main` went `fbea540..79484ad` at 9:49:50 AM MST Nov 24, no force. Production record `8034592336`, served from about 9:50:41 AM. `ci.yml` `45441665499`. `e2e-prod` `45441822341`: 237 of 237, the job 8m55s, `/stale`'s footer test 2.9 s. `check:stale-count-plan` six of six. The footers and badges equal the old index's counts: 14,947 / 9,643 / 5,304 and 802 / 594 / 208.
+- **The method:**
+  - Two empty copies of prod's whole DDL, one with the new index and one without. Prod has no `sqlite_stat` table, so its planner plans from the schema too.
+  - The app's own loaders, over the handoff's pages and 39 more read-only readers, sent 518 statements: 154 distinct SQL texts read `bills`.
+  - **The control:** ten of ten plans equal prod's, line for line. Of the 316 that read `bills`, 296 are equal and 20 differ only in the temp b-tree's label (3.45.1 against 3.47.0). Forcing each old index on prod reproduces the copy's before-plan.
+  - **Not reached:** 14 of the census's 74 readers (crons' reads inside write paths, the gated watchlist, the uncalled `getFeedStats`). None names a `summary` term unhinted except `getFeedStats` with a cluster, which nothing calls.
+- **§ 1:** 47 statements in 8 shapes changed, all `getFeedBills` under a stage: seven COUNTs (bare, house, senate, topic, search, cluster, ceremonial) and the `sort=introduced` SELECT.
+  - Before, all drove from `idx_bills_summary_stage_topics`, not `idx_bills_summary_stage` as HO 831 read.
+  - Under a topic the count now reads `topics` from 16,257 table rows at committee: about 30 ms warm became 75 to 102.
+  - The chamber counts read less (`bill_type` came off the table, 72 to 34 ms). The rest read the same.
+- **§ 2:** `getStaleBills`' default group sorts 802 rows in a few ms of store work (36.5 to 38 ms warm after a 62 ms first warm run, against a 28 ms round trip), not ~845 in ~1.6 s. The single-stage form walks 161 date-index entries.
+  - On the new index the default group returns the same ids in the same time, and `stage=committee` sorts 14,947 rows instead (60 to 238 ms).
+  - `/stale`'s store requests over seven days: 108, with 20 to 22 past 2 s in 19 ten-second slots. 14 of the 15 episodes fell inside an `e2e-prod` crawl, 11 of them right after a deploy, and none after the bills sync. The 4,620 ms request's statement is unread.
+- **§ 3:** the search count under a stage walks the stage's rows and probes `bills_fts` once per row: 0.89 to 5.8 s at committee on five terms. With `CROSS JOIN` letting `bills_fts` drive it reads 27 to 133 ms, with equal counts. It ran the same on the old index.
+- **What the readings support:** pin the topic count to `idx_bills_summary_stage_topics`; leave the other shapes and both row-list forms; `CROSS JOIN` for the search count. Nothing built.
+- **The docs:**
+  - `docs/probes/832-index-plans.md`.
+  - The backlog gains two lines, the topic count's pin and the search count. The slow-spells line gains Nov 24 and the seven days. Reconcile 286 / 400 / 686 at open, 288 / 400 / 688 at close.
+  - Oddities: a before-plan read on a schema of the same shape wasn't prod's.
+  - SKILL: the probe beside HO 829's; the new index's entry gains § 1; the old index's line is corrected.
+- **Flagged in the paste:** the handoff came with no hash; HO 831's before-index, wrong in its landed block and in `getFeedBills`' comment (SKILL's is corrected here); SKILL's two *drives from `bills_fts`* lines, qualified for `?stage=`; the row list's ~1.6 s comment; a review before the push, 28 of 29 findings standing, all fixed.
+- **Also notes now run through HO 832.**

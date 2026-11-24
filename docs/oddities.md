@@ -248,3 +248,21 @@ The fix was a covering index, `idx_bills_summary_stage_stale`, and proving it fo
 - **The label overstates.** The table seek is a `DeferredSeek`, which reads nothing until a `Column` opcode reads the table's cursor. On the copy, the four-column index's count read no column from the table: it was index-only in fact.
 
 **The rule:** price a count that reads table rows by how many rows it reads, not by a warm timing, since its cold first run can't be had on demand. And to tell whether a plan reads the table, read `EXPLAIN`'s opcodes for a `Column` on the table's cursor. `EXPLAIN QUERY PLAN`'s `COVERING` is a label, and on a partial index over `summary` it's there only when `summary` is an index column.
+
+## A before-plan read on a schema of the same shape wasn't prod's (HO 832, Nov 2026)
+
+Once `idx_bills_summary_stage_stale` was on prod, prod could no longer say what the planner had picked without it. So HO 831 asked a local schema "of the same shape" (`831-artifacts/before-plan-831.ts`): an 11-column `bills` with four of prod's 21 indexes on it. It read the `?stage=` feed COUNTs as having driven from `idx_bills_summary_stage`, and that went into HO 831's roadmap block and SKILL's index list.
+
+HO 832 built its copies from prod's whole `sqlite_master` instead: 163 statements, the 32-column `bills` and every index, with no rows. The control matched prod in 10 of 10 statements, and in all 316 that read `bills` but for a label. On those copies the same COUNTs drove from **`idx_bills_summary_stage_topics`**. Forcing that index on prod reproduces the copy's before-plan, line for line, in all 47 statements that changed.
+
+HO 831's schema didn't plan as prod even after the write. With the new index added, it still put the topic COUNT on `idx_bills_summary_stage`, where prod puts it on the new index.
+
+The difference cost a reading:
+- **The old index HO 831 forced for the topic count, `idx_bills_summary_stage`,** doesn't hold `topics`. Its *reads `topics` from the table on either index* compared the new index with the wrong old one.
+- **The real old plan,** on `idx_bills_summary_stage_topics`, read no table column. The new one reads `topics` from 16,257 rows at committee.
+
+Why the 11-column table planned otherwise wasn't read. Its columns and its missing indexes are the differences.
+
+A smaller trap rode along: **3.45.1 and 3.47.0 print one plan line differently.** The local engine writes `USE TEMP B-TREE FOR RIGHT PART OF ORDER BY` where prod's writes `… FOR LAST TERM OF ORDER BY`. 20 of the 316 plans differed by that label alone, so a plan diff across engine versions has to normalize it before it counts a difference.
+
+**The rule:** read a before-plan on a copy of prod's exact DDL, not a schema of the same shape. Run a control against prod before reading anything off the copy. Then confirm each before-plan by forcing its index on prod, since forcing is the one reading of the old plan prod can still give.
