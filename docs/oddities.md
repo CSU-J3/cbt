@@ -266,3 +266,25 @@ Why the 11-column table planned otherwise wasn't read. Its columns and its missi
 A smaller trap rode along: **3.45.1 and 3.47.0 print one plan line differently.** The local engine writes `USE TEMP B-TREE FOR RIGHT PART OF ORDER BY` where prod's writes `… FOR LAST TERM OF ORDER BY`. 20 of the 316 plans differed by that label alone, so a plan diff across engine versions has to normalize it before it counts a difference.
 
 **The rule:** read a before-plan on a copy of prod's exact DDL, not a schema of the same shape. Run a control against prod before reading anything off the copy. Then confirm each before-plan by forcing its index on prod, since forcing is the one reading of the old plan prod can still give.
+
+## A date walk with a LIMIT is fast where matches are dense and reads the table where they're rare, and a warm bound hid it (HO 833, Nov 2026)
+
+**`/stale`'s row list under a single stage walked `idx_bills_latest_action` in date order** and let `LIMIT 50` stop the walk (HO 350).
+- The index gives the order but none of the WHERE. Every entry the walk passes costs a table row, to test `stage`, `summary`, `is_ceremonial` and `bill_type`.
+- At `committee` the matches are dense, and it finds its 50 in 161 entries.
+- At the rare stages they're sparse in date order, so it passes thousands of entries before its 50th match: 8,692 at `introduced`, 9,059 at `floor` and 3,209 at `other_chamber`, of the 18,978 dated entries below the cutoff.
+
+**The repo had learned this once.**
+- HO 382 gave `/bills` the same date walk for `?stage=committee` and gated it on the matched count. The reason, in `getFeedBills`' note: *forcing the date index there scans the whole 16k index for the few matches, e.g. president 0 rows -> 25s*.
+- `/stale` took the hint without the gate, and nothing priced its rare stages. The crawl's *counts bills only* test has loaded `/stale?stage=floor` since HO 823: 20.5 s in HO 829's first local crawl, and in Production the page's one store request took 4,620 ms at HO 831's FF and 4,382 ms at HO 832's.
+
+**A warm bound hid a 56-fold difference in rows read.**
+- HO 833's STEP 0 priced the walk by warm runs, and asked `floor` to read five times slower than `committee`.
+- Warm, 9,059 table rows cost about 20 ms more than 161 (64 to 97 ms against 34 to 60), so the bound said no.
+- The same session's first runs said otherwise. The `committee` candidate read 14,947 table rows in 6,979 ms on its first run, against about 94 warm. The plan check's first run of `introduced`'s walk took 4,937 ms.
+- HO 831's entry above already gives the rule: price a read by how many table rows it reads. The bound didn't, and the HALT ruling replaced it with a count (`833-halt-ruling.md`).
+
+**The rule:** a plan that walks an order index and filters as it goes costs what the filter rejects, not what it returns.
+- Count the table rows it passes, every entry up to its last row's key, beside the rows a selective index would fetch, and choose by the count.
+- A warm timing can't tell 161 rows from 9,059. A first touch can, but it can't be had on demand.
+- `check:bills-plans` now holds each stage's row list to 2,000 table rows.

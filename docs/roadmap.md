@@ -3909,3 +3909,30 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - SKILL: the probe beside HO 829's; the new index's entry gains § 1; the old index's line is corrected.
 - **Flagged in the paste:** the handoff came with no hash; HO 831's before-index, wrong in its landed block and in `getFeedBills`' comment (SKILL's is corrected here); SKILL's two *drives from `bills_fts`* lines, qualified for `?stage=`; the row list's ~1.6 s comment; a review before the push, 28 of 29 findings standing, all fixed.
 - **Also notes now run through HO 832.**
+
+**Also (HO 833): `/stale`'s row list picks its index by stage; `/bills`' count under a stage and a topic is pinned to `idx_bills_summary_stage_topics`, and its search count drives from the full-text index.** Built on `3eb0291`, on `833-review`.
+
+- **HO 832's FF, taken:** `main` went `79484ad..3eb0291` at 2:01:10 PM MST Nov 24, no force. Production record `8040626944`, served from about 2:01:57 PM. `ci.yml` `45486757433`. `e2e-prod` `45486889690`: 237 of 237, the job 9m02s. The deployment's first two `/stale` store requests read 35 and 85 ms; the one slow request, 4,382 ms, was `/stale?stage=floor`'s.
+  - `832-ff-go.md`'s ruling 5 guessed at a deploy's first requests, and they were fast.
+  - HO 831's block names `idx_bills_summary_stage` as the index stage-filtered counts used before it; it was `idx_bills_summary_stage_topics` (HO 832).
+- **STEP 0 HALTed at claim 5,** and `833-halt-ruling.md` lifted it.
+  - The bound asked `floor`'s row list to read five times slower than `committee`'s warm, and it read 1.4× (64-97 against 34-60 ms).
+  - The chat's error: it priced a read that fetches table rows by a warm timing, against HO 831's oddities rule. The ruling counts rows: `floor`'s date walk passes 9,059 entries and their table rows, `committee`'s 161.
+  - First runs: the `committee` candidate's took 6,979 ms against ~94 warm, and the plan check's first run of `introduced`'s walk took 4,937 ms.
+  - Claims 1-4 and 7 held. Claim 6: the candidate's ids and order equalled the current's at all four stages. Claim 8: under a stage the search COUNT drove from `bills`, the row SELECT already from `bills_fts`.
+- **§ 1:** `check:stale-count-plan` became `check:bills-plans`: HO 831's six cases plus four, on the app's own builders.
+  - `staleBillsQuery`, `feedCountQuery` and `feedSearchCountQuery` are exported by the test commit, every statement byte-identical (518 captured on each tree, the same SQL in the same order).
+  - Red 18 of 26 at `1e54aa7`, green 26 of 26 at `f0a4429`.
+- **§ 2, the rule by rows:** `introduced` (8,692 → 94), `floor` (9,059 → 252) and `other_chamber` (3,209 → 550) move to `idx_bills_summary_stage_stale`; `committee` keeps the walk (161 against 14,947). `STALE_DATE_WALK_STAGES` names it.
+- **§ 3:** a stage with a topic, or a cluster, and no search term forces `_topics`; the topic COUNT reads no table column.
+- **§ 4:** the search COUNT joins `bills_fts CROSS JOIN bills`; the row SELECT keeps its JOIN. `app/stale/page.tsx`'s footer comment now says the count reads no table row unfiltered or by chamber, and names the filters that still send it to the table.
+- **The legs:**
+  - B, C and D: 12 row lists, 42 counts and 60 search pages, equal to the base's. Search at committee read 55-69 ms against up to 8,709.
+  - E, local builds, cold Next cache, warm store: `/stale?stage=floor` 457-463 ms against 509-658; `/bills` under a topic 157 against 205-282; under `q=tax` 89-96 against 5,266-5,425.
+- **Gates:** each commit built on its own (64 routes, 0 warnings). The crawl's five specs read 237 of 237 against HEAD's build, *counts bills only* 456 ms. The secret audit found nothing.
+- **The docs:**
+  - The backlog strikes the topic-count and search-count lines. The slow-spells line gains HO 832's FF and the rare-stage walk: of its three Production spells, only Nov 23's first slot loaded a rare stage. Reconcile 288 / 400 / 688 at open, 286 / 402 / 688 at close.
+  - Oddities: a date walk with a LIMIT, and a warm bound that hid a 56-fold difference in rows.
+  - SKILL: the row list, the counts, the search join, the gate, and an entry for `_topics`.
+- **Flagged in the paste:** the handoff and the ruling came with no hash; STEP 0 ran `committee` first, so no rare-stage first run was a first touch; § 3's cluster hint has no check case; the page comment says which filters still send the footer count to the table, where the ruling said it reads none.
+- **Also notes now run through HO 833.**
