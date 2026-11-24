@@ -7285,14 +7285,16 @@ export type FeedCount = {
 // HO 831: the two stalled-bill counts' statements, built here and exported so
 // check:stale-count-plan (scripts/check-stale-count-plan.ts) reads the plan of
 // the SQL the app runs, not a copy of it. getStaleBillsCount and
-// getStaleCommitteeCount execute exactly these.
+// getStaleCommitteeCount execute exactly these. Both force
+// idx_bills_summary_stage_stale, which covers the unfiltered gate;
+// getStaleCommitteeCount's comment says why.
 export function staleBillsCountQuery(chamber?: Chamber): {
   sql: string;
   args: (string | number)[];
 } {
   const { clauses, args } = buildStaleWhere({ chamber });
   return {
-    sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage
+    sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage_stale
             WHERE ${clauses.join(" AND ")}`,
     args,
   };
@@ -7304,7 +7306,7 @@ export function staleCommitteeCountQuery(filters: FeedFilters): {
 } {
   const { clauses, args } = buildStaleWhere({ ...filters, stage: "committee" });
   return {
-    sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage
+    sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage_stale
             WHERE ${clauses.join(" AND ")}`,
     args,
   };
@@ -7312,8 +7314,11 @@ export function staleCommitteeCountQuery(filters: FeedFilters): {
 
 // HO 807: the TOP STALLS badge's count, the set getStaleBills draws its rows
 // from, so the badge reads the set the way MOVERS and NEW THIS WEEK read theirs
-// (the tab still renders up to its 60-row ceiling). It takes the chamber only,
-// so the hint is always the one getStaleBills takes with no stage. HO 823: the
+// (the tab still renders up to its 60-row ceiling). It takes the chamber only.
+// Until HO 831 its hint was the one getStaleBills takes with no stage
+// (idx_bills_summary_stage); since HO 831 it forces
+// idx_bills_summary_stage_stale through staleBillsCountQuery
+// (getStaleCommitteeCount's comment says why). HO 823: the
 // set is bills only (buildStaleWhere says why); on prod at 66bd819 it read 959,
 // 802 of them bills and 157 resolutions, so the badge reads 802 on that corpus.
 export const getStaleBillsCount = unstable_cache(
@@ -7406,15 +7411,30 @@ export const getStaleBills = unstable_cache(
 // can't merge them, since the key is made before this runs. Without it, one
 // entry serves every view that reads the count.
 //
-// It takes getStaleBillsCount's hint. The plan is SEARCH bills USING INDEX
-// idx_bills_summary_stage (stage=?): the index finds the ~18k committee rows
-// with a summary, and every other clause reads the table row. On prod at
-// 5d9c184 (HO 828's STEP 0) the unfiltered count took 2,532 ms on its first run
-// in a fresh process, then 70 and 68 ms. A second process read every filter's
-// count at 64 to 123 ms. So the slow run is the store's first touch of those
-// pages, not the steady cost. A covering index would drop the table reads, but
-// it's a schema write on prod for a footer's first read after a cold start, so
-// there isn't one (the chat's ruling on HO 828's HALT).
+// HO 831: it and getStaleBillsCount force idx_bills_summary_stage_stale
+// (stage, is_ceremonial, latest_action_date, bill_type, summary) WHERE summary
+// IS NOT NULL, through the builders above. Every column the unfiltered gate
+// names is in it, so the plan is SEARCH bills USING COVERING INDEX
+// idx_bills_summary_stage_stale (stage=?) and no table row is read.
+//
+// Until HO 831 both forced idx_bills_summary_stage (stage, is_ceremonial). For
+// this count that index found the ~18k committee rows with a summary (for the
+// badge, the ~1.6k past-committee rows), and each non-ceremonial one read
+// latest_action_date and bill_type from its table row. HO 828's STEP 0
+// read the unfiltered count's first run at 2,532 ms (prod at 5d9c184), and the
+// ruling on HO 828's HALT took that as the cold cost and refused a covering
+// index. It was low: at 2:05 PM MST Nov 23, 2026, Production's requests to the
+// store ran at p95 10,001 ms (the 10 s abort), max 25,047 ms, on /stale alone
+// (read by route; which statement wasn't read). On prod after the build (HO 831 § 2, a warm store) the unfiltered count read
+// 14,947 on both indexes: 128 ms on its first run in a fresh process, then 34
+// and 35 ms, against 186, 68 and 63 ms on the old one.
+//
+// `summary` is in the index because the query names the partial index's own
+// predicate, and SQLite labels a plan COVERING only when every column the query
+// names is in the index. Without it the plan reads USING INDEX, though the
+// table seek is deferred and no table column is read (HO 831 § 1). Under a
+// topic, a search term or a cluster the count still reads table rows, as the
+// page's own row list does.
 export const getStaleCommitteeCount = unstable_cache(
   async (filters: FeedFilters): Promise<number> => {
     const db = getDb();

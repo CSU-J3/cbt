@@ -1958,6 +1958,31 @@ async function main() {
     );
     console.log("ok: idx_lda_filings_client_id");
   }
+  // HO 831: cover the two stalled-bill counts, getStaleCommitteeCount (/stale's
+  // footer) and getStaleBillsCount (the TOP STALLS badge on /). Both forced
+  // idx_bills_summary_stage (stage, is_ceremonial), so every non-ceremonial row
+  // it found (~18k committee rows with a summary for the footer, ~1.6k
+  // past-committee rows for the badge) read latest_action_date and bill_type
+  // from its table row: 30-317ms on a warm store at HO 831's STEP 0, but at 2:05
+  // PM MST Nov 23, 2026 Production's requests to the store ran at p95 10,001ms
+  // (the 10s abort), max 25,047ms, on /stale alone. This index holds every
+  // column the unfiltered gate names, so the plan goes from `SEARCH bills USING
+  // INDEX idx_bills_summary_stage (stage=?)` to `SEARCH bills USING COVERING
+  // INDEX idx_bills_summary_stage_stale (stage=?)`, with no table row read (the
+  // unfiltered committee count on prod, warm: 186/68/63ms → 128/34/35ms).
+  // `summary` trails because the query names the partial predicate, and SQLite
+  // labels a plan COVERING only when every column the query names is in the
+  // index; it stores each summary's text a second time (10.1 MB on a copy of
+  // prod's 20,203 rows). Unhinted, the planner also takes it for getFeedBills'
+  // ?stage= COUNTs (HO 831's plan sweep). Long-timeout client: the build reads
+  // every summary.
+  // Applied to prod by scripts/apply-index-831.ts, one statement on HO 406's
+  // precedent, not by a run of this file. Forced via INDEXED BY in
+  // staleCommitteeCountQuery and staleBillsCountQuery (lib/queries.ts).
+  await getLongTimeoutDb().execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_summary_stage_stale ON bills(stage, is_ceremonial, latest_action_date, bill_type, summary) WHERE summary IS NOT NULL",
+  );
+  console.log("ok: idx_bills_summary_stage_stale");
   // HO 659: the reach stamp on `race_candidates`. The table recorded nothing
   // temporal, so a harvest's effect could only be BRACKETED behaviourally
   // (HO 642 compared newest-date-reached against newest-reachable; HO 656 had to
