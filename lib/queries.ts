@@ -7282,6 +7282,34 @@ export type FeedCount = {
   filtered: number;
 };
 
+// HO 831: the two stalled-bill counts' statements, built here and exported so
+// check:stale-count-plan (scripts/check-stale-count-plan.ts) reads the plan of
+// the SQL the app runs, not a copy of it. getStaleBillsCount and
+// getStaleCommitteeCount execute exactly these.
+export function staleBillsCountQuery(chamber?: Chamber): {
+  sql: string;
+  args: (string | number)[];
+} {
+  const { clauses, args } = buildStaleWhere({ chamber });
+  return {
+    sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage
+            WHERE ${clauses.join(" AND ")}`,
+    args,
+  };
+}
+
+export function staleCommitteeCountQuery(filters: FeedFilters): {
+  sql: string;
+  args: (string | number)[];
+} {
+  const { clauses, args } = buildStaleWhere({ ...filters, stage: "committee" });
+  return {
+    sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage
+            WHERE ${clauses.join(" AND ")}`,
+    args,
+  };
+}
+
 // HO 807: the TOP STALLS badge's count, the set getStaleBills draws its rows
 // from, so the badge reads the set the way MOVERS and NEW THIS WEEK read theirs
 // (the tab still renders up to its 60-row ceiling). It takes the chamber only,
@@ -7291,12 +7319,7 @@ export type FeedCount = {
 export const getStaleBillsCount = unstable_cache(
   async (chamber?: Chamber): Promise<number> => {
     const db = getDb();
-    const { clauses, args } = buildStaleWhere({ chamber });
-    const rs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage
-            WHERE ${clauses.join(" AND ")}`,
-      args,
-    });
+    const rs = await db.execute(staleBillsCountQuery(chamber));
     return Number(rs.rows[0]?.n ?? 0);
   },
   ["getStaleBillsCount"],
@@ -7395,12 +7418,7 @@ export const getStaleBills = unstable_cache(
 export const getStaleCommitteeCount = unstable_cache(
   async (filters: FeedFilters): Promise<number> => {
     const db = getDb();
-    const { clauses, args } = buildStaleWhere({ ...filters, stage: "committee" });
-    const rs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage
-            WHERE ${clauses.join(" AND ")}`,
-      args,
-    });
+    const rs = await db.execute(staleCommitteeCountQuery(filters));
     return Number(rs.rows[0]?.n ?? 0);
   },
   ["getStaleCommitteeCount"],

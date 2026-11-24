@@ -68,7 +68,8 @@
     "check:odds-sites": "tsx scripts/check-odds-sites.ts",
     "check:design-citations": "tsx scripts/check-design-citations.ts",
     "check:control-close": "tsx scripts/check-control-close.ts",
-    "check:stage-law": "tsx scripts/check-stage-law.ts"
+    "check:stage-law": "tsx scripts/check-stage-law.ts",
+    "check:stale-count-plan": "tsx scripts/check-stale-count-plan.ts"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",
