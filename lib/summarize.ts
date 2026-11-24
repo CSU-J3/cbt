@@ -36,9 +36,11 @@ export type BillRow = {
   latest_action_text: string | null;
 };
 
-// HO 386: `stage` is no longer emitted by the LLM. computeStage(latest_action_text)
-// is the sole stage authority (since HO 383); the runner derives + writes stage
-// from it, so the prompt no longer asks for stage and the parse no longer reads it.
+// HO 386: `stage` is no longer emitted by the LLM. The runner derives + writes
+// stage, so the prompt no longer asks for stage and the parse no longer reads it.
+// HO 830: the authority is computeStageWithLaws (lib/enums.ts): a bill whose
+// detail lists a law is enacted, otherwise computeStage(latest_action_text), the
+// sole authority from HO 383 to HO 830.
 export type SummarizeResult = {
   summary: string;
   topics: string[];

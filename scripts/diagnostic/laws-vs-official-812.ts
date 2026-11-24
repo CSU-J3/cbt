@@ -14,7 +14,8 @@
 //    predicate: those law types with is_ceremonial 0 or NULL).
 // 3. the diff both ways: official laws CT holds short of enacted or not at all, and CT laws the official list lacks.
 //    For each, the bill's Congress.gov detail (its sponsor and update date) and its actions: when it became law, and
-//    the latest action by date, since CT stages a bill from its latest action alone (lib/enums.ts:97).
+//    the latest action by date, since at HO 812 CT staged a bill from its latest action alone (lib/enums.ts:97).
+//    Since HO 830 a law listed in the bill's detail stages it enacted first (computeStageWithLaws, lib/enums.ts).
 // 4. what each gap would change: the dome's law count and the party lines, from the read's own counts.
 // Prod is only read: every statement through guard() (SELECT or WITH only, no write keyword), the schema fingerprinted
 // before and after. Congress.gov only GETs. The log and JSON go to docs/handoffs/812-artifacts/ (repo-ignored), and a
