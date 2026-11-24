@@ -1444,6 +1444,11 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > the PC's first byte crosses the PC's network too. Prod's side by the minute is
 > Vercel's `vercel.external_api_request.request_duration_ms` on the store's host
 > (read through the Vercel MCP's observability query), when a function was reading.
+> HO 832's probe (`docs/probes/832-index-plans.md`, § 2) read seven days of it on
+> `/stale`, to Nov 24, by route. There were 108 store requests, and 20 to 22 ran
+> past 2 s in 15 episodes. 14 of those fell inside an `e2e-prod` crawl, 11 of them
+> in the minutes after a Production deploy, and none followed the bills sync.
+> `getStaleBills` itself reads 32-158ms, warm and on a fresh process.
 
 > **AUTHORING RULE — an `unstable_cache` return type must be JSON-serializable,
 > and nothing enforces it (HO 533 → 662).** The cache round-trips the value
@@ -1494,10 +1499,13 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 >   `summary IS NOT NULL`). 12.1s → 38ms.
 > - **`idx_bills_summary_stage (stage, is_ceremonial) WHERE summary IS NOT NULL`** —
 >   the gated stage distribution (HO 278); leading `stage` kills the temp-b-tree
->   GROUP BY. 860ms → 32ms. (Until HO 831 the planner also picked this one on
->   its own for a `?stage=` feed COUNT; since `idx_bills_summary_stage_stale`
->   exists it picks that one, which covers the COUNT (HO 831's plan sweep on
->   prod) — see the gating note below.)
+>   GROUP BY. 860ms → 32ms. (HO 831 read the planner as also picking this one on
+>   its own for a `?stage=` feed COUNT, from a schema of the same shape. Read on a
+>   copy of prod's whole DDL and confirmed by forcing it on prod (HO 832), the
+>   planner picked `idx_bills_summary_stage_topics (stage, is_ceremonial, topics)
+>   WHERE summary IS NOT NULL` until HO 831, and has picked
+>   `idx_bills_summary_stage_stale` since. See that entry, and the gating note
+>   below.)
 > - **`idx_bills_summary_stage_stale (stage, is_ceremonial, latest_action_date, bill_type, summary) WHERE summary IS NOT NULL`** —
 >   the two stalled-bill counts, `getStaleCommitteeCount` and `getStaleBillsCount`
 >   (HO 831), through `staleCommitteeCountQuery` / `staleBillsCountQuery`. It holds
@@ -1506,8 +1514,23 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 >   `idx_bills_summary_stage` and read `latest_action_date` and `bill_type` from
 >   table rows (~18k committee rows for the footer, ~1.6k past-committee rows for
 >   the badge): 30-317ms on a warm store, and on Nov 23 the 10s abort on
->   Production's `/stale`. Unhinted, the planner also takes this index for
->   `getFeedBills`' `?stage=` COUNTs (HO 831's plan sweep).
+>   Production's `/stale`. Unhinted, the planner also takes this index for 47
+>   `getFeedBills` statements under a stage, all of which drove from
+>   `idx_bills_summary_stage_topics` before (HO 832,
+>   `docs/probes/832-index-plans.md`, § 1). They're the seven COUNT shapes (bare,
+>   house, senate, topic, search, cluster, ceremonial) and the `sort=introduced` row
+>   SELECT; the default-sort row SELECT under a stage still drives from `_topics`.
+>   No other captured reader of `bills` changed. 14 cron and uncalled readers
+>   weren't reached; by reasoning none can take it unhinted, bar the uncalled
+>   `getFeedStats` under a cluster. Seven shapes read the same table rows or fewer;
+>   the chamber counts no longer read `bill_type` from the table (72 → 34ms at
+>   committee). **Under a topic the COUNT now reads `topics` from the table** for
+>   every non-ceremonial row (16,257 at committee; ~30 → 75-102ms warm), since the
+>   old index held `topics` and this one doesn't. The probe reads that as a pin to
+>   `idx_bills_summary_stage_topics` (backlog). At `?stage=committee` the
+>   search-path COUNT runs 0.89-5.8s warm over five terms as the planner picks it
+>   (5.2-5.6s for `tax` on either index), and 27-210ms at the other stages: the
+>   planner drives from `bills` and probes `bills_fts` once per row (backlog).
 >   **`summary` is a column because SQLite labels a plan COVERING only when
 >   every column the query names is in the index, and the query names the partial
 >   predicate.** Without it the label reads `USING INDEX`, though the bytecode's
@@ -1836,7 +1859,9 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > (the inline feed filter inside `getFeedBills`) MATCH the index. **The feed filter
 > has a q-present vs q-absent index split — do NOT collapse it:** when `q` is set,
 > `getFeedBills` drives from `bills_fts` (MATCH + `JOIN bills ON bills.rowid =
-> bills_fts.rowid`), ANDs the other filters via `buildFeedWhere(filters, {prefix:
+> bills_fts.rowid`; under `?stage=` its COUNT doesn't — the planner drives it from
+> `bills` and probes `bills_fts` once per row, HO 832 § 3, backlog), ANDs the other
+> filters via `buildFeedWhere(filters, {prefix:
 > "bills.", skipQ: true})`, and carries **no `INDEXED BY` hint** — forcing the HO 335
 > sort index there makes the planner drive the sort index instead of the FTS join,
 > collapsing back to a scan. When `q` is absent, it's the HO 335 path verbatim
@@ -2125,7 +2150,7 @@ Two surfaces (HO 129): inline page filters on `/bills` and `/members` (where the
 - Members search: `members.name OR members.state_name` LIKE-matched, `is_current=1` gate. Returns name + party + state + chamber + sponsored bill count. Reuses `bills_agg` CTE for the count. Rows link to `/members/[bioguide_id]`.
 - News search: `news_mentions.article_title OR article_summary OR source`, INNER JOIN on bills with ceremonial gate. Reuses `NewsMention` shape so `SearchResultsNews` renders through the existing `NewsRow` (with `linkBillToDetail` so the bill rail jumps to `/bill/[id]` rather than `/bills`'s expand panel — search intent is "find this thing").
 - Reports search: `reports.title OR content_md`. `reports` table is ~5 rows × ~2KB markdown body, so the LIKE-scan is trivial. Result row includes a ~140-char snippet centered on the first match (markdown noise `#*_` collapsed to spaces).
-- Inline `/bills?q=` (**HO 338 — FTS5, was a LIKE**): when `q` is set, `getFeedBills` drives from `bills_fts` (`MATCH` + rowid join) and ANDs the rest via `buildFeedWhere(filters, {prefix:"bills.", skipQ:true})` — composes with `?stage=`/`?topics=`/`?chamber=`/sort/pagination, date-sorted, count off the match, **no `INDEXED BY` hint** (it would block the FTS drive — see the Full-text search box). When `q` is absent it's the HO 335 walk verbatim. `StageFilter`, `TopicFilter`, and `BillRow` thread `q` through their hrefs so search survives filter/expand changes. Empty results render a centered `NO BILLS MATCH "<q>"` block plus `[Clear search]` (preserves stage+topics). Match semantics match `/search`: token-prefix (not substring), spans title/summary/sponsor_name, id-substring dropped.
+- Inline `/bills?q=` (**HO 338 — FTS5, was a LIKE**): when `q` is set, `getFeedBills` drives from `bills_fts` (`MATCH` + rowid join) and ANDs the rest via `buildFeedWhere(filters, {prefix:"bills.", skipQ:true})` — composes with `?stage=`/`?topics=`/`?chamber=`/sort/pagination, date-sorted, count off the match (under `?stage=` the COUNT doesn't drive from `bills_fts`: the planner walks the stage's rows and probes it once per row, HO 832 § 3, backlog), **no `INDEXED BY` hint** (it would block the FTS drive — see the Full-text search box). When `q` is absent it's the HO 335 walk verbatim. `StageFilter`, `TopicFilter`, and `BillRow` thread `q` through their hrefs so search survives filter/expand changes. Empty results render a centered `NO BILLS MATCH "<q>"` block plus `[Clear search]` (preserves stage+topics). Match semantics match `/search`: token-prefix (not substring), spans title/summary/sponsor_name, id-substring dropped.
 - Inline `/members?q=` semantics unchanged: name-only LIKE filter in `buildMemberWhere`.
 - **On a touch device no text-entry control computes under 16px (HO 815).** Under `@media (pointer: coarse)` one block in `app/globals.css` sets `font-size: 16px !important` on `.search-box`, `.lob-fbar-search-input`, `.cart-search input`, `select` and `textarea`: `SearchBox`, the four filter selects, `/lobbying`'s filter-bar search and the cartogram's search. **Since HO 816 a filter select is a `TouchSelect`:** on a touch device it's drawn as a 12px face, and the select laid invisibly over that face is still what computes 16px under this rule (next bullet). The lobby's search on `/welcome` is 17px by ruling (mock 813) and is outside the list. 16px is the size below which iOS Safari zooms the page when a control takes focus; that zoom is the reason for the number and is unmeasured here. With a fine pointer nothing changes. **A new text-entry control joins both halves:** an `input` takes a selector in that block (a `select` or `textarea` is covered bare), and its route's slug joins `TOUCH_SLUGS` in `e2e/routes.ts`. `e2e/touch.spec.ts` reads the size, and the narrow spec reds on a control whose page is off the list (Playwright smoke crawler).
 - **On a touch device the filter bars are ruled C (HO 816): a dropdown wears the segments' face over its hidden 16px select, every control in a bar answers a 40px touch, and `/bills` and `/members` take phone rows.** Corey's *"c"*, 12:54 PM MST 2026-11-13, on the ruled mock **`docs/design/mock-816-touch-controls.html`** (v1). C is the control treatment for every page with these controls. Everything sits under `(pointer: coarse)` in one block after HO 815's in `app/globals.css`; **with a fine pointer nothing moves** (Leg B read every control's box and font identical at 1440 and 390 on five pages, 174 controls). **The wrapper:** `components/TouchSelect.tsx` (no `"use client"`; its four callers, `StageFilter`, `SortDropdown`, `StateFilter` and `PartyFilter`, are client components) takes `label` (the select's `aria-label`: *Stage*, *Sort*, *State*, *Party*), `faceText` (the selected option's label, the first option's when none matches) and the select's own props, and renders `<span class="tsel"><span class="tsel-face" aria-hidden="true"><span>{faceText}</span><i class="tsel-caret">▼</i></span><select …/></span>`. **It's the one home of the select's `className` and `style`.** A script reading a filter bar's text reads each face's text too (the face is `aria-hidden`, which `textContent` ignores), so read a select's `selectedOptions` or its `aria-label` instead. Off a touch device `.tsel` is `display: contents` and the face is `display: none`, so the select is the flex item it always was. On one, the face is drawn (28px, `--fs-12`, uppercase, `--border-strong`, `--bg-base`) and the select is `position: absolute` over it at opacity 0, 6px above and below (40px tall), so the select is what's tapped, focused and read by a screen reader; focus draws an amber outline on the face. **The class hooks, and the rules they carry:** `SegmentedToggle`'s container is `seg-toggle`, and the checkbox `<label>` (`CeremonialToggle`; `ProceduralToggle` was the second until HO 823 deleted it) is `ctl-check`. **Inside a bar** (`.mc-fbar` on `/bills`, `/members`, `/lobbying`; `.filter-chips` on `/stale`'s and `/changes`' sections), each segment and each checkbox label takes a transparent `::after` 6px past its top and bottom (the slop: a 28px control answers a 40px touch), the toggle's `overflow` goes visible so the slop isn't clipped, and `.mc-fbar`'s row gap goes from 10 to 12 so two rows' slop can't meet (`.filter-chips` already has 12). **Outside a bar** (the feed-mode toggles on `/bills` and `/news`, `/electoral`'s and `/watchlist`'s toggles, `HeaderBar`'s ceremonial box) the classes are present and no rule applies. `/watchlist`'s sort select takes the face through the component; no gate walks that page. **Phone rows** (`(pointer: coarse) and (max-width: 700px)`): see the `/bills` and `/members` entries; `/stale`, `/changes` and `/lobbying` keep their order. **Unread here:** whether a phone's own picker opens on that tap (backlog, *Nobody has read C's dropdowns on an iPhone*); `e2e/touch.spec.ts`'s readings 6 and 7 read the face, the cover and the hit under Chromium's emulation.
