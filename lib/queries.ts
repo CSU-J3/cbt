@@ -128,6 +128,11 @@ export const STALE_FILTER_STAGES = [
   "other_chamber",
 ] as const;
 const STALE_FILTER_STAGES_SET = new Set<string>(STALE_FILTER_STAGES);
+// HO 833: the stages whose /stale row list walks idx_bills_latest_action in date
+// order; every other single stage seeks idx_bills_summary_stage_stale.
+// staleBillsQuery's comment gives the rule and the readings.
+export const STALE_DATE_WALK_STAGES = ["committee"] as const;
+const STALE_DATE_WALK_STAGES_SET = new Set<string>(STALE_DATE_WALK_STAGES);
 
 // HO 350: the /stale DEFAULT group (no explicit ?stage). "Past committee" =
 // advanced past the committee wall, enacted excluded (became law, not stalled).
@@ -7089,12 +7094,18 @@ function feedCountGates(filters: FeedFilters): {
   // idx_bills_is_ceremonial (MULTI-INDEX OR over the fat bills table, 44s cold,
   // the every-/bills-load 500 risk). Force the 277 partial idx_bills_summary_feed
   // there → index-only COUNT (44s → 30ms). ONLY when bare: with a user filter the
-  // planner already picks a better index (stage → the 278 idx_bills_summary_stage,
-  // 152ms; cluster → idx_bills_cluster_id), and forcing summary_feed would make
+  // planner already picks a better index (stage → a stage index; cluster →
+  // idx_bills_cluster_id at HO 279, dropped at HO 340 for
+  // idx_bills_cluster_agg), and forcing summary_feed would make
   // it SCAN the whole partial set + row-fetch the filter column (measured 8.5s
   // cold for ?stage= — a regression). HO 335 closes the chamber case below via
   // idx_bills_chamber_feed; ?q has no usable index (LIKE) and stays a WATCH.
   // includeCeremonial only DROPS the ceremonial clause, so it stays bare-eligible.
+  //
+  // HO 833: the stage index was idx_bills_summary_stage_topics until HO 831 and
+  // has been idx_bills_summary_stage_stale since (HO 832 read both on prod).
+  // This comment named the 278 idx_bills_summary_stage (152ms) until HO 833. A
+  // stage with a topic or a cluster is pinned to _topics in feedCountQuery.
   const bareGated =
     !filters.stage &&
     !filters.sponsor &&
@@ -7117,6 +7128,20 @@ function feedCountGates(filters: FeedFilters): {
 }
 
 // The q-absent path's COUNT.
+//
+// HO 833: a stage with a topic, or a stage with a cluster, and no search term
+// takes idx_bills_summary_stage_topics (stage, is_ceremonial, topics) WHERE
+// summary IS NOT NULL. Until HO 831 the planner took that index for every
+// stage-filtered COUNT. Once idx_bills_summary_stage_stale landed it took that
+// one, which has no `topics`, so the COUNT under a stage and a topic read
+// `topics` from the table for every non-ceremonial row of the stage: 16,257 at
+// committee, about 30 ms warm against 75 to 102
+// (docs/probes/832-index-plans.md, § 1, shape 4). On _topics every term that
+// COUNT names is in the index, so it reads no table row (check:bills-plans,
+// case 3). A cluster drops the ceremonial gate and its COUNT reads cluster_id
+// from the table for every row of the stage on either index (shape 6), so it
+// takes the same hint at no cost. Every other filtered combination stays
+// unhinted.
 export function feedCountQuery(filters: FeedFilters): {
   sql: string;
   args: (string | number)[];
@@ -7124,11 +7149,17 @@ export function feedCountQuery(filters: FeedFilters): {
   const { clauses, args } = buildFeedWhere(filters);
   const where = clauses.join(" AND ");
   const { bareGated, chamberOnly } = feedCountGates(filters);
+  const stageTopics =
+    !!filters.stage &&
+    !filters.q &&
+    ((!!filters.topics && filters.topics.length > 0) || !!filters.cluster);
   const countHint = bareGated
     ? " INDEXED BY idx_bills_summary_feed"
     : chamberOnly
       ? " INDEXED BY idx_bills_chamber_feed"
-      : "";
+      : stageTopics
+        ? " INDEXED BY idx_bills_summary_stage_topics"
+        : "";
   return {
     sql: `SELECT COUNT(*) AS n FROM bills${countHint} WHERE ${where}`,
     args: [...args],
@@ -7136,6 +7167,8 @@ export function feedCountQuery(filters: FeedFilters): {
 }
 
 // The search path's COUNT (HO 338), for a MATCH string buildBillsFtsMatch made.
+// HO 833: `CROSS JOIN` makes bills_fts the outer loop; getFeedBills' comment on
+// the search path says why.
 export function feedSearchCountQuery(
   filters: FeedFilters,
   match: string,
@@ -7146,7 +7179,7 @@ export function feedSearchCountQuery(
   });
   const qWhere = qClauses.join(" AND ");
   return {
-    sql: `SELECT COUNT(*) AS n FROM bills_fts JOIN bills ON bills.rowid = bills_fts.rowid
+    sql: `SELECT COUNT(*) AS n FROM bills_fts CROSS JOIN bills ON bills.rowid = bills_fts.rowid
               WHERE bills_fts MATCH ? AND ${qWhere}`,
     args: [match, ...qArgs],
   };
@@ -7179,7 +7212,19 @@ export const getFeedBills = unstable_cache(
     // count off the match (no second scan). **No HO 335 sort-index hint on this
     // path** — a forced INDEXED BY makes the planner drive from the sort index,
     // which blocks the FTS join from driving and lands back on a scan. The
-    // q-ABSENT path below is HO 335 verbatim and must stay byte-unchanged.
+    // q-ABSENT path below keeps HO 335's hints (its COUNT's are
+    // feedCountQuery's since HO 833).
+    //
+    // HO 833: the COUNT joins `bills_fts CROSS JOIN bills`. In SQLite, CROSS
+    // JOIN keeps the tables in the order written, so bills_fts is the outer
+    // loop: the MATCH finds its rows, and bills is read by rowid for each. The
+    // plain JOIN let the planner choose, and under ?stage= it chose bills: it
+    // walked the stage's rows on a stage index and probed bills_fts once per row
+    // (`SCAN bills_fts VIRTUAL TABLE INDEX 0:=M3`), 0.89 to 5.8 s at committee
+    // against 27 to 133 ms driving from bills_fts, with equal counts on five
+    // terms (docs/probes/832-index-plans.md, § 3). With no stage it already
+    // drove from bills_fts. The row SELECT below drives from bills_fts under
+    // every stage (read on prod at 3eb0291), so it keeps the plain JOIN.
     const ftsQ = filters.q?.trim();
     if (ftsQ) {
       const match = buildBillsFtsMatch(ftsQ);
@@ -7378,31 +7423,66 @@ export function staleBillsQuery(
   const { clauses, args } = buildStaleWhere(filters);
   args.push(limit);
 
-  // HO 350 — index + sort are chosen by whether a SINGLE stage is picked.
+  // HO 350, HO 833 — the index and the sort are chosen by the stage.
   //
-  //  • Single stage (?stage=…, incl. STAGE → COMMITTEE): the legislative-order
-  //    CASE is degenerate (all rows share one stage), so order by
-  //    latest_action_date ASC and force idx_bills_latest_action — the index
-  //    PROVIDES the order, so the LIMIT short-circuits after 50 (43ms even on
-  //    the 14.8k committee backlog).
+  //  • No stage: the default past-committee group (floor, other_chamber,
+  //    president). Its legislative-order CASE sort can't ride a date index, so
+  //    it drives off the selective idx_bills_summary_stage (stage,
+  //    is_ceremonial) WHERE summary IS NOT NULL. It seeks the group's rows
+  //    (1,618 handed over, 802 matching, on prod at HO 832) and a temp b-tree
+  //    sorts them, a few ms of the store's work. Forcing idx_bills_latest_action
+  //    HERE was the HO 350-ship bug: it scanned the whole `latest_action_date <
+  //    cutoff` range (~most of the corpus) into a temp b-tree — 73s, tripping
+  //    the 10s abort → cold 500.
   //
-  //  • Default past-committee group (no stage, floor/other_chamber/president):
-  //    the CASE sort can't ride a date index, so drive off the SELECTIVE
-  //    idx_bills_summary_stage (stage, is_ceremonial) WHERE summary IS NOT NULL
-  //    — it seeks the ~845 group rows, then a temp-b-tree sorts that small set
-  //    (~1.6s). Forcing idx_bills_latest_action HERE was the HO 350-ship bug:
-  //    it scanned the whole `latest_action_date < cutoff` range (~most of the
-  //    corpus) into a temp b-tree — 73s, tripping the 10s abort → cold 500.
+  //  • A single stage (?stage=…, incl. STAGE → COMMITTEE): every row shares the
+  //    stage, so the CASE is degenerate and it orders by latest_action_date
+  //    ASC, id ASC. The stage picks the index:
+  //    - A stage in STALE_DATE_WALK_STAGES (committee) walks
+  //      idx_bills_latest_action from the oldest dated entry. The index gives
+  //      the order, so the LIMIT stops the walk once it has its rows and only
+  //      the last term is sorted (`USE TEMP B-TREE FOR LAST TERM OF ORDER BY`).
+  //      The walk fetches a table row for every entry it passes, matched or
+  //      not, to test the WHERE. Committee's matches are dense: 161 entries for
+  //      50 rows.
+  //    - Every other stage seeks idx_bills_summary_stage_stale (stage,
+  //      is_ceremonial, latest_action_date, bill_type, summary) WHERE summary IS
+  //      NOT NULL. It holds every column of the gate, so the plan fetches a
+  //      table row only for a row that matches, then sorts them. A rare stage's
+  //      matches are sparse in date order, so the walk would pass thousands of
+  //      entries to find 50: 8,692 at introduced, 9,059 at floor and 3,209 at
+  //      other_chamber, of the 18,978 dated entries below the cutoff, against
+  //      94, 252 and 550 rows on this index.
+  //    - A stage with no stalled bill returns no rows either way: the walk
+  //      passes every entry below the cutoff (18,978 on prod) and fetches each
+  //      one's row, and this index passes only that stage's own entries,
+  //      rejects each inside the index, and fetches none.
+  //
+  //    The rule (HO 833's halt ruling): a stage takes
+  //    idx_bills_summary_stage_stale when that plan fetches fewer than half the
+  //    table rows the date walk passes and returns the same rows in the same
+  //    order. On prod at 3eb0291 both held at introduced, floor and
+  //    other_chamber; at committee this index would fetch 14,947 rows against
+  //    the walk's 161. check:bills-plans (cases 1 and 2) holds each stage to its
+  //    index and to 2,000 table rows. Price these by the rows they fetch, not a
+  //    warm timing: warm, floor's 9,059 rows read in 64 to 97 ms against
+  //    committee's 34 to 60, while Production's one store request for
+  //    /stale?stage=floor read 4.4 to 4.6 s at HO 831's and HO 832's FFs, and
+  //    the check's first run of introduced's walk read 4.9 s.
+  //
+  //    The precedent is getFeedBills' HO 382 note: forcing the date index on a
+  //    selective stage "scans the whole 16k index for the few matches", so
+  //    /bills gates its date walk on the matched count. This walk took the same
+  //    hint without that gate from HO 350 to HO 833.
   //
   // HO 823: both orders end on `id ASC`, a unique key, so the last row on TOP
-  // STALLS and on /stale is fixed when it sits in a tie. The single-stage form
-  // still drives off idx_bills_latest_action, sorting only the last term
-  // (`USE TEMP B-TREE FOR LAST TERM OF ORDER BY`): committee, limit 50, read
-  // 33, 32, 34ms on prod at 66bd819, against 34, 34, 34ms for the old form.
+  // STALLS and on /stale is fixed when it sits in a tie.
   const singleStage = !!filters.stage;
-  const fromHint = singleStage
-    ? "idx_bills_latest_action"
-    : "idx_bills_summary_stage";
+  const fromHint = !singleStage
+    ? "idx_bills_summary_stage"
+    : STALE_DATE_WALK_STAGES_SET.has(filters.stage!)
+      ? "idx_bills_latest_action"
+      : "idx_bills_summary_stage_stale";
   const orderBy = singleStage
     ? "ORDER BY latest_action_date ASC, id ASC"
     : `ORDER BY

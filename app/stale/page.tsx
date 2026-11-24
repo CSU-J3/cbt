@@ -76,9 +76,13 @@ export default async function StalePage({
     getStaleBills(feedFilters, 50),
     // HO 828: ?stage=committee draws no footer, so it doesn't read the count.
     // Elsewhere a failed count drops the footer rather than failing the page
-    // (HO 828's review ruling): the count reads table rows, HO 828's legs saw
-    // it abort on a slow store, and uncaught here an abort is a 500 for the
-    // whole page. welcome/page.tsx's report snapshot is the precedent. It
+    // (HO 828's review ruling). HO 828's legs saw the count abort on a slow
+    // store when it read table rows. Since HO 831 it reads none unfiltered or
+    // by chamber (idx_bills_summary_stage_stale covers that gate); a topic,
+    // search or cluster filter still sends it to the table. The catch still
+    // earns its place: any store abort, on a table read or not, is a 500 for
+    // the whole page if it's uncaught here. welcome/page.tsx's report snapshot
+    // is the precedent. It
     // doesn't shorten the wait: a slow count still holds the page until it
     // answers or aborts. HO 829: a failed count is null, not 0, so the render
     // below can tell it from an empty count.
