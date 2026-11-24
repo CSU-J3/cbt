@@ -412,7 +412,7 @@ export function sanitizeClusterId(
 // prod at 66bd819 and INCLUDE PROCEDURAL changed no row. Deleted with it:
 // lib/stale-procedural.ts, components/ProceduralToggle.tsx and
 // scripts/diagnostic/stale-procedural-350.ts.
-function buildStaleWhere(filters: FeedFilters): {
+export function buildStaleWhere(filters: FeedFilters): {
   clauses: string[];
   args: (string | number)[];
 } {
@@ -7076,6 +7076,82 @@ export type FeedPage = {
   totalPages: number;
 };
 
+// HO 833: getFeedBills' two COUNT statements, built here and exported so
+// check:bills-plans (scripts/check-bills-plans.ts) reads the plan of the SQL the
+// app runs, not a copy of it. getFeedBills executes exactly these.
+function feedCountGates(filters: FeedFilters): {
+  bareGated: boolean;
+  chamberOnly: boolean;
+} {
+  // HO 279: the BARE feed COUNT (no user filter) is the summary-gated mis-plan
+  // the 278 scout flagged — buildFeedWhere always carries `summary IS NOT NULL`,
+  // and with no narrower predicate the statless planner drives off
+  // idx_bills_is_ceremonial (MULTI-INDEX OR over the fat bills table, 44s cold,
+  // the every-/bills-load 500 risk). Force the 277 partial idx_bills_summary_feed
+  // there → index-only COUNT (44s → 30ms). ONLY when bare: with a user filter the
+  // planner already picks a better index (stage → the 278 idx_bills_summary_stage,
+  // 152ms; cluster → idx_bills_cluster_id), and forcing summary_feed would make
+  // it SCAN the whole partial set + row-fetch the filter column (measured 8.5s
+  // cold for ?stage= — a regression). HO 335 closes the chamber case below via
+  // idx_bills_chamber_feed; ?q has no usable index (LIKE) and stays a WATCH.
+  // includeCeremonial only DROPS the ceremonial clause, so it stays bare-eligible.
+  const bareGated =
+    !filters.stage &&
+    !filters.sponsor &&
+    !filters.q &&
+    !filters.chamber &&
+    !filters.cluster &&
+    (!filters.topics || filters.topics.length === 0);
+  // HO 335: chamber as the SOLE filter — force the partial idx_bills_chamber_feed
+  // (bill_type, is_ceremonial) WHERE summary IS NOT NULL for an index-only count
+  // (else idx_bills_is_ceremonial MULTI-INDEX OR). Excludes the stage/cluster
+  // combos so a more selective index (summary_stage / cluster_id) still wins.
+  const chamberOnly =
+    !!filters.chamber &&
+    !filters.stage &&
+    !filters.sponsor &&
+    !filters.q &&
+    !filters.cluster &&
+    (!filters.topics || filters.topics.length === 0);
+  return { bareGated, chamberOnly };
+}
+
+// The q-absent path's COUNT.
+export function feedCountQuery(filters: FeedFilters): {
+  sql: string;
+  args: (string | number)[];
+} {
+  const { clauses, args } = buildFeedWhere(filters);
+  const where = clauses.join(" AND ");
+  const { bareGated, chamberOnly } = feedCountGates(filters);
+  const countHint = bareGated
+    ? " INDEXED BY idx_bills_summary_feed"
+    : chamberOnly
+      ? " INDEXED BY idx_bills_chamber_feed"
+      : "";
+  return {
+    sql: `SELECT COUNT(*) AS n FROM bills${countHint} WHERE ${where}`,
+    args: [...args],
+  };
+}
+
+// The search path's COUNT (HO 338), for a MATCH string buildBillsFtsMatch made.
+export function feedSearchCountQuery(
+  filters: FeedFilters,
+  match: string,
+): { sql: string; args: (string | number)[] } {
+  const { clauses: qClauses, args: qArgs } = buildFeedWhere(filters, {
+    prefix: "bills.",
+    skipQ: true,
+  });
+  const qWhere = qClauses.join(" AND ");
+  return {
+    sql: `SELECT COUNT(*) AS n FROM bills_fts JOIN bills ON bills.rowid = bills_fts.rowid
+              WHERE bills_fts MATCH ? AND ${qWhere}`,
+    args: [match, ...qArgs],
+  };
+}
+
 // Wrapped in unstable_cache because revalidate=300 does nothing for a route
 // that awaits searchParams (Next.js 15 treats that as a dynamic API and
 // disables the Full Route Cache). Caching at the query level instead means
@@ -7116,11 +7192,7 @@ export const getFeedBills = unstable_cache(
         skipQ: true,
       });
       const qWhere = qClauses.join(" AND ");
-      const countRs = await db.execute({
-        sql: `SELECT COUNT(*) AS n FROM bills_fts JOIN bills ON bills.rowid = bills_fts.rowid
-              WHERE bills_fts MATCH ? AND ${qWhere}`,
-        args: [match, ...qArgs],
-      });
+      const countRs = await db.execute(feedSearchCountQuery(filters, match));
       const total = Number(countRs.rows[0]?.n ?? 0);
       const totalPages = Math.max(1, Math.ceil(total / pageSize));
       const clampedPage = Math.min(Math.max(1, Math.trunc(page)), totalPages);
@@ -7159,45 +7231,10 @@ export const getFeedBills = unstable_cache(
     const { clauses, args } = buildFeedWhere(filters);
     const where = clauses.join(" AND ");
 
-    // HO 279: the BARE feed COUNT (no user filter) is the summary-gated mis-plan
-    // the 278 scout flagged — buildFeedWhere always carries `summary IS NOT NULL`,
-    // and with no narrower predicate the statless planner drives off
-    // idx_bills_is_ceremonial (MULTI-INDEX OR over the fat bills table, 44s cold,
-    // the every-/bills-load 500 risk). Force the 277 partial idx_bills_summary_feed
-    // there → index-only COUNT (44s → 30ms). ONLY when bare: with a user filter the
-    // planner already picks a better index (stage → the 278 idx_bills_summary_stage,
-    // 152ms; cluster → idx_bills_cluster_id), and forcing summary_feed would make
-    // it SCAN the whole partial set + row-fetch the filter column (measured 8.5s
-    // cold for ?stage= — a regression). HO 335 closes the chamber case below via
-    // idx_bills_chamber_feed; ?q has no usable index (LIKE) and stays a WATCH.
-    // includeCeremonial only DROPS the ceremonial clause, so it stays bare-eligible.
-    const bareGated =
-      !filters.stage &&
-      !filters.sponsor &&
-      !filters.q &&
-      !filters.chamber &&
-      !filters.cluster &&
-      (!filters.topics || filters.topics.length === 0);
-    // HO 335: chamber as the SOLE filter — force the partial idx_bills_chamber_feed
-    // (bill_type, is_ceremonial) WHERE summary IS NOT NULL for an index-only count
-    // (else idx_bills_is_ceremonial MULTI-INDEX OR). Excludes the stage/cluster
-    // combos so a more selective index (summary_stage / cluster_id) still wins.
-    const chamberOnly =
-      !!filters.chamber &&
-      !filters.stage &&
-      !filters.sponsor &&
-      !filters.q &&
-      !filters.cluster &&
-      (!filters.topics || filters.topics.length === 0);
-    const countHint = bareGated
-      ? " INDEXED BY idx_bills_summary_feed"
-      : chamberOnly
-        ? " INDEXED BY idx_bills_chamber_feed"
-        : "";
-    const countRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills${countHint} WHERE ${where}`,
-      args: [...args],
-    });
+    // The COUNT's hints (HO 279, HO 335) are feedCountGates' and
+    // feedCountQuery's, above; the row SELECT below reads the same two gates.
+    const { bareGated, chamberOnly } = feedCountGates(filters);
+    const countRs = await db.execute(feedCountQuery(filters));
     const total = Number(countRs.rows[0]?.n ?? 0);
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const clampedPage = Math.min(Math.max(1, Math.trunc(page)), totalPages);
@@ -7283,8 +7320,8 @@ export type FeedCount = {
 };
 
 // HO 831: the two stalled-bill counts' statements, built here and exported so
-// check:stale-count-plan (scripts/check-stale-count-plan.ts) reads the plan of
-// the SQL the app runs, not a copy of it. getStaleBillsCount and
+// check:bills-plans (scripts/check-bills-plans.ts; check:stale-count-plan until
+// HO 833) reads the plan of the SQL the app runs, not a copy of it. getStaleBillsCount and
 // getStaleCommitteeCount execute exactly these. Both force
 // idx_bills_summary_stage_stale, which covers the unfiltered gate;
 // getStaleCommitteeCount's comment says why.
@@ -7331,40 +7368,44 @@ export const getStaleBillsCount = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
-export const getStaleBills = unstable_cache(
-  async (filters: FeedFilters, limit = 50): Promise<FeedBill[]> => {
-    const db = getDb();
-    const { clauses, args } = buildStaleWhere(filters);
-    args.push(limit);
+// HO 833: getStaleBills' statement, built here and exported so check:bills-plans
+// (scripts/check-bills-plans.ts) reads the plan of the SQL the app runs, not a
+// copy of it. getStaleBills executes exactly this.
+export function staleBillsQuery(
+  filters: FeedFilters,
+  limit = 50,
+): { sql: string; args: (string | number)[] } {
+  const { clauses, args } = buildStaleWhere(filters);
+  args.push(limit);
 
-    // HO 350 — index + sort are chosen by whether a SINGLE stage is picked.
-    //
-    //  • Single stage (?stage=…, incl. STAGE → COMMITTEE): the legislative-order
-    //    CASE is degenerate (all rows share one stage), so order by
-    //    latest_action_date ASC and force idx_bills_latest_action — the index
-    //    PROVIDES the order, so the LIMIT short-circuits after 50 (43ms even on
-    //    the 14.8k committee backlog).
-    //
-    //  • Default past-committee group (no stage, floor/other_chamber/president):
-    //    the CASE sort can't ride a date index, so drive off the SELECTIVE
-    //    idx_bills_summary_stage (stage, is_ceremonial) WHERE summary IS NOT NULL
-    //    — it seeks the ~845 group rows, then a temp-b-tree sorts that small set
-    //    (~1.6s). Forcing idx_bills_latest_action HERE was the HO 350-ship bug:
-    //    it scanned the whole `latest_action_date < cutoff` range (~most of the
-    //    corpus) into a temp b-tree — 73s, tripping the 10s abort → cold 500.
-    //
-    // HO 823: both orders end on `id ASC`, a unique key, so the last row on TOP
-    // STALLS and on /stale is fixed when it sits in a tie. The single-stage form
-    // still drives off idx_bills_latest_action, sorting only the last term
-    // (`USE TEMP B-TREE FOR LAST TERM OF ORDER BY`): committee, limit 50, read
-    // 33, 32, 34ms on prod at 66bd819, against 34, 34, 34ms for the old form.
-    const singleStage = !!filters.stage;
-    const fromHint = singleStage
-      ? "idx_bills_latest_action"
-      : "idx_bills_summary_stage";
-    const orderBy = singleStage
-      ? "ORDER BY latest_action_date ASC, id ASC"
-      : `ORDER BY
+  // HO 350 — index + sort are chosen by whether a SINGLE stage is picked.
+  //
+  //  • Single stage (?stage=…, incl. STAGE → COMMITTEE): the legislative-order
+  //    CASE is degenerate (all rows share one stage), so order by
+  //    latest_action_date ASC and force idx_bills_latest_action — the index
+  //    PROVIDES the order, so the LIMIT short-circuits after 50 (43ms even on
+  //    the 14.8k committee backlog).
+  //
+  //  • Default past-committee group (no stage, floor/other_chamber/president):
+  //    the CASE sort can't ride a date index, so drive off the SELECTIVE
+  //    idx_bills_summary_stage (stage, is_ceremonial) WHERE summary IS NOT NULL
+  //    — it seeks the ~845 group rows, then a temp-b-tree sorts that small set
+  //    (~1.6s). Forcing idx_bills_latest_action HERE was the HO 350-ship bug:
+  //    it scanned the whole `latest_action_date < cutoff` range (~most of the
+  //    corpus) into a temp b-tree — 73s, tripping the 10s abort → cold 500.
+  //
+  // HO 823: both orders end on `id ASC`, a unique key, so the last row on TOP
+  // STALLS and on /stale is fixed when it sits in a tie. The single-stage form
+  // still drives off idx_bills_latest_action, sorting only the last term
+  // (`USE TEMP B-TREE FOR LAST TERM OF ORDER BY`): committee, limit 50, read
+  // 33, 32, 34ms on prod at 66bd819, against 34, 34, 34ms for the old form.
+  const singleStage = !!filters.stage;
+  const fromHint = singleStage
+    ? "idx_bills_latest_action"
+    : "idx_bills_summary_stage";
+  const orderBy = singleStage
+    ? "ORDER BY latest_action_date ASC, id ASC"
+    : `ORDER BY
           CASE stage
             WHEN 'president' THEN 4
             WHEN 'other_chamber' THEN 3
@@ -7374,7 +7415,7 @@ export const getStaleBills = unstable_cache(
           END DESC,
           latest_action_date ASC, id ASC`;
 
-    const sql = `SELECT id, congress, bill_type, bill_number, title,
+  const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_observed_at,
@@ -7389,7 +7430,13 @@ export const getStaleBills = unstable_cache(
       ${orderBy}
       LIMIT ?`;
 
-    const rs = await db.execute({ sql, args });
+  return { sql, args };
+}
+
+export const getStaleBills = unstable_cache(
+  async (filters: FeedFilters, limit = 50): Promise<FeedBill[]> => {
+    const db = getDb();
+    const rs = await db.execute(staleBillsQuery(filters, limit));
     return rs.rows.map(rowToFeedBill);
   },
   ["getStaleBills"],
@@ -8903,7 +8950,7 @@ const SEARCH_LIMIT = 50;
 // exactly (a short prefix like `a*` / `1*` expands to a huge posting list).
 // Implicit AND across terms, OR across the indexed columns; bm25 ranks. Returns
 // null when the query has no usable tokens (caller returns empty).
-function buildBillsFtsMatch(q: string): string | null {
+export function buildBillsFtsMatch(q: string): string | null {
   const tokens = q.toLowerCase().match(/[a-z0-9]+/g);
   if (!tokens || tokens.length === 0) return null;
   return tokens.map((t) => (t.length >= 3 ? `${t}*` : t)).join(" ");
