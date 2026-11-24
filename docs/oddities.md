@@ -235,3 +235,16 @@ How each cause reads:
 - **A store slow at its front end** slows all three.
 - **A slow PC network** slows the PC's two.
 - **A stuck local process** slows none of them.
+
+## A count that's fast warm and aborts cold, and a plan label that says it reads the table when it doesn't (HO 831, Nov 2026)
+
+`/stale`'s footer count and `/`'s TOP STALLS badge forced `idx_bills_summary_stage (stage, is_ceremonial) WHERE summary IS NOT NULL`. The index found the ~18k committee rows with a summary for the footer and the ~1.6k past-committee rows for the badge, and each non-ceremonial one read `latest_action_date` and `bill_type` from its table row.
+- **Warm, it was fast:** 30 to 317 ms on prod at HO 831's STEP 0. HO 828's STEP 0 read a 2,532 ms first run, and `828-halt-ruling.md` took that as the cold cost when it refused a covering index.
+- **Cold, it's taken to have aborted:** at 2:05 PM MST Nov 23, Production's store requests on `/stale` ran 10,001, 6,564 and 25,047 ms in three 10-second slots, on that route alone. That reading is by route. Which statement it was, and whether the store was cold, weren't read (`830-artifacts/vercel-metrics-830.md`), and `/stale` also runs its row list.
+- **A reading from the PC couldn't tell the two apart.** A first run there reads whatever the store has cached at that moment: 2,532 ms at HO 828; 292 and 317 ms at HO 831's STEP 0; 2,888 ms for the committee count at 6:16 PM, then 186 ms for the same count four minutes later. None came near Production's 25 s, and nothing on the PC makes the store cold on demand.
+
+The fix was a covering index, `idx_bills_summary_stage_stale`, and proving it found a second trap:
+- **SQLite labels a plan `COVERING` only when every column the query names is in the index.** A query must name a partial index's predicate (`summary IS NOT NULL`) to use it, so a plan on a partial index over `summary` reads `USING INDEX` unless `summary` is one of its columns. The handoff asked for the label, and its four-column index HALTed on it on a local copy (SQLite 3.45.1); prod's 3.47.0 plans the existing `idx_bills_summary_stage` the same way.
+- **The label overstates.** The table seek is a `DeferredSeek`, which reads nothing until a `Column` opcode reads the table's cursor. On the copy, the four-column index's count read no column from the table: it was index-only in fact.
+
+**The rule:** price a count that reads table rows by how many rows it reads, not by a warm timing, since its cold first run can't be had on demand. And to tell whether a plan reads the table, read `EXPLAIN`'s opcodes for a `Column` on the table's cursor. `EXPLAIN QUERY PLAN`'s `COVERING` is a label, and on a partial index over `summary` it's there only when `summary` is an index column.
