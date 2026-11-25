@@ -26,6 +26,14 @@
 //      opcodes read no column from bills' table b-tree.
 //   4. /bills' search COUNT under a stage (feedSearchCountQuery), per stage, one
 //      term: the plan's outer loop is bills_fts.
+//   5. /bills' COUNT under a stage and a cluster (feedCountQuery), per stage in
+//      ALLOWED_STAGES, cluster facility-naming: it plans on
+//      idx_bills_summary_stage_topics, and the only column it reads from bills'
+//      table b-tree is cluster_id. That's the hint HO 833 shipped beside the
+//      topic's, which had no case (833-ff-go.md, ruling 1; HO 834). Read on prod
+//      at 9b965e5, the statement with its INDEXED BY stripped plans on
+//      idx_bills_summary_stage_stale at all six stages, so this case reds if the
+//      hint goes.
 //
 // What a plan reads from the table comes from EXPLAIN's opcodes: an OpenRead on
 // bills' root page, and each Column on that cursor. A plan's label isn't a
@@ -42,6 +50,7 @@
 //   npm run check:bills-plans
 import "dotenv/config";
 import type { InArgs } from "@libsql/client";
+import { CLUSTER_IDS } from "../lib/cluster-patterns";
 import { getDb } from "../lib/db";
 import { ALLOWED_STAGES } from "../lib/enums";
 import {
@@ -70,6 +79,8 @@ const MAX_MS = 2000;
 const MAX_TABLE_ROWS = 2000;
 const TOPIC = "healthcare";
 const TERM = "tax";
+const CLUSTER = "facility-naming";
+if (!CLUSTER_IDS.has(CLUSTER)) throw new Error(`case 5's cluster ${CLUSTER} isn't in CLUSTER_IDS: pick one that is`);
 
 const READ_START = /^\s*(SELECT|EXPLAIN)\b/i;
 const WRITE_WORD = /\b(INSERT|UPDATE|DELETE|UPSERT|CREATE|DROP|ALTER|ATTACH|DETACH|VACUUM|REINDEX|PRAGMA)\b/i;
@@ -188,6 +199,19 @@ for (const stage of ALLOWED_STAGES) {
   const p = await plan(stmt.sql, stmt.args);
   const outer = /^(?:SCAN|SEARCH) (\w+)/.exec(p.find((l) => /^(?:SCAN|SEARCH) /.test(l)) ?? "")?.[1] ?? "?";
   report(outer === "bills_fts", `4 · getFeedBills search COUNT · stage=${stage} · q=${TERM}`, `outer loop ${outer} · ${p.join(" | ")}`);
+}
+
+// 5. /bills' COUNT under a stage and a cluster.
+for (const stage of ALLOWED_STAGES) {
+  const stmt = feedCountQuery({ stage, cluster: CLUSTER });
+  const p = await plan(stmt.sql, stmt.args);
+  const idx = billsIndex(p);
+  const fromTable = await tableColumns(stmt.sql, stmt.args);
+  report(
+    idx === TOPICS_INDEX && fromTable.length === 1 && fromTable[0] === "cluster_id",
+    `5 · getFeedBills COUNT · stage=${stage} · cluster=${CLUSTER}`,
+    `${p.join(" | ")} · table columns read: ${fromTable.length ? fromTable.join(", ") : "none"}`,
+  );
 }
 
 console.log(failed ? `check:bills-plans FAILED: ${failed} of ${total} cases` : `check:bills-plans ok: ${total} of ${total} cases`);
