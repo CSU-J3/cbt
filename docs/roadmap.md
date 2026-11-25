@@ -3936,3 +3936,39 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - SKILL: the row list, the counts, the search join, the gate, and an entry for `_topics`.
 - **Flagged in the paste:** the handoff and the ruling came with no hash; STEP 0 ran `committee` first, so no rare-stage first run was a first touch; § 3's cluster hint has no check case; the page comment says which filters still send the footer count to the table, where the ruling said it reads none.
 - **Also notes now run through HO 833.**
+
+**Also (HO 834): a read-only probe of `/`'s store requests; `check:bills-plans` gains the cluster count; the ratings cron entry goes; the docs stop saying the Sabato read runs.** Built on `9b965e5`, on `834-review`.
+
+- **HO 833's FF, taken:** `main` went `3eb0291..9b965e5` at 12:28:20 PM MST Nov 25, no force. Production record `8067404946`, served from about 12:29:13 to 12:29:18 PM. `ci.yml` `45685528335`.
+  - `e2e-prod` `45685640929`: attempt 1 read 236 passed and 1 flaky (`/electoral` @430, two 10 s aborts); attempt 2 read 237 of 237.
+  - `/stale?stage=floor`'s store request took 37 ms. The Windows task was unregistered at 1:11:54 PM MST.
+- **STEP 0 held, claims 1 to 12.** `/api/health` read 503, naming only `/api/sync-race-ratings`.
+  - The ratings route: 46 `error` rows since Oct 11, each Cloudflare's 403 (`cf-mitigated`, 46 of 46).
+  - `rating-history`: 31 runs, one a day from Oct 26 to Nov 25, each `logged 0 / unchanged 276 / total 276`; no `rating_history` row since Oct 24.
+  - The cluster count plans on `_topics`, reading only `cluster_id`, at all six stages; stripped of its hint, on `_stale` at all six.
+  - The tag map differed from the chat's: `/` never calls `getFeedBills`, two news reads the chat didn't name carry `news-breaking`, and no reader of `/` carries `member-news`.
+- **§ 1, the probe (`docs/probes/834-home-store-requests.md`):** one load of `/` asks the store 203 times cold, 2 fresh and 13 after the news tick.
+  - At HO 833's FF, 427 = 354 + 73. The 354 came from `/`'s first two crawl loads (376 with the slot before, against 2 × 203); the 73 from six stage loads.
+  - **The reading is (c), something else, in two parts:** `/` had gone about 16 hours without a rendering load, so its one-hour entries were stale, and the deploy re-keyed 12 of its 42 cached readers (`unstable_cache` keys on the callback's bundled text). How the 376 splits between them isn't read.
+  - The flush came after the 354. The burst *precedes* the spell.
+  - The guard refused a read-mode batch's wrapper on run 1, before sending it. It was corrected to HO 824's batch rule: sequences refused, five controls, the log read after every step. Run 4 is the record.
+- **§ 2:** case 5 reads 32 of 32 at HEAD. The control (each statement stripped of its hint) reds 6 of 6.
+- **§ 3:** the `0 11 * * *` entry left `vercel.json` and `CRON_ROUTES` (18 and 18). The route, its `functions` entry and the CLI stay, and three headers say so.
+  - `rating-history`'s header says a by-hand ingest's moves reach `rating_history` but not MOVED: HO 768's guard needs a successful ratings-sync run, which the CLI doesn't write.
+- **The legs:** A, 307 and 284 statements passed, all reads, none refused; B, 32 of 32 and the control 6 of 6; C, 18 over 18; D, the five files only, the route diffs comment-only.
+- **Gates:** each commit built on its own, secretless (typecheck, the e2e tsc, the four checks, 64 routes, 0 warnings).
+- **Flagged in the paste:**
+  - the guard's run 1 and its correction;
+  - two probe steps the handoff didn't name;
+  - N = 4, because B reads only 10-s slots;
+  - the herd's split by page request is approximate;
+  - the probe ran on Node 25;
+  - the `rating-history` header departs from the handoff's wording;
+  - five sentences outside SKILL the removal made false, left;
+  - SKILL ride-alongs;
+  - no HO 835 line, though (c) names causes a fix could address.
+- **The docs:**
+  - The backlog strikes the Sabato line on Corey's ruling. The slow-spells line gains the probe's verdict, and the three-crons line a clause. Reconcile 286 / 402 / 688 at open, 285 / 403 / 688 at close.
+  - No HO 835 line and no oddity: both were conditional on (a) or (b).
+  - SKILL: the Sabato bullet, the cron count and line, the `rating-history` line, and the registry count.
+- **Also notes now run through HO 834.**
