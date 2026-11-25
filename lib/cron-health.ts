@@ -54,13 +54,15 @@ export type CronRoute = {
   signal?: CronSignal;
 };
 
-// The 19 watched route keys, one per vercel.json entry since HO 806; there were
-// 20 entries over these 19 route strings until the markets `?source=fmp` entry
-// went. /api/cron/lda-rollup is watched since HO 737, which closes the gap HO
+// The 18 watched route keys, one per vercel.json entry since HO 806 (19 until
+// HO 834); there were 20 entries over 19 route strings until the markets
+// `?source=fmp` entry went. /api/cron/lda-rollup is watched since HO 737, which closes the gap HO
 // 676 found while adding the roster route and filed rather than fixed.
 // The count read 14 while listing 15 before HO 676; corrected with the addition
 // rather than left to drift further, again with lda-rollup's (HO 737), again
 // with general-ballot's (HO 749), and again with committee-meetings' (HO 754).
+// The ratings route's entry left with its cron at HO 834, on Corey's ruling of
+// Nov 25: 19 to 18.
 export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/summarize", schedule: "*/10 * * * *", maxStaleMs: 30 * MIN }, // every 10m
   { path: "/api/cron/news", schedule: "*/30 * * * *", maxStaleMs: 70 * MIN }, // every 30m
@@ -93,7 +95,6 @@ export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/amendments", schedule: "0 7 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/nominations", schedule: "0 9 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/weekly-report", schedule: "30 9 * * 1", maxStaleMs: 9 * DAY, windowOnly: true }, // weekly
-  { path: "/api/sync-race-ratings", schedule: "0 11 * * *", maxStaleMs: 26 * HOUR }, // daily (HO 771; weekly Wed before)
 ];
 
 export type CronRouteHealth = {

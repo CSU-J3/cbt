@@ -1,12 +1,20 @@
-// Race-ratings sync cron entry (handoff 88). Reads 2026 House AND Senate race
-// ratings daily since HO 771 (both chambers since HO 744; House-only before
-// that), one reader per rater since HO 770: `WIRED` (lib/race-ratings-scrape.ts)
-// names the raters each chamber reads, today Sabato's Crystal Ball alone, from
-// its rating-changes page, and Cook's and Inside Elections' rows stand as
-// Ballotpedia last wrote them on 2026-09-30. Separate route + cron because the
-// cadence is daily since HO 771 (a stall at 11:00Z costs a day, not a week, and
-// the raters publish on any weekday) while /api/sync runs every 6h (`0 */6`,
-// vercel.json), and the work is unrelated to the bill pipeline.
+// Race-ratings sync route (handoff 88). NO CRON SINCE HO 834: its `0 11 * * *`
+// entry left vercel.json on Corey's ruling of Nov 25, 2026, after Cloudflare's
+// managed challenge refused it at every scheduled run from Oct 11 to Nov 25 (a
+// 403 on Sabato's rating-changes page, 46 runs). It runs by hand, a POST with
+// Bearer CRON_SECRET, or through the CLI (`npm run sync:race-ratings`). Turning
+// it back on is one crons entry in vercel.json and its CRON_ROUTES entry
+// (lib/cron-health.ts).
+//
+// It reads 2026 House AND Senate race ratings (both chambers since HO 744;
+// House-only before that), one reader per rater since HO 770: `WIRED`
+// (lib/race-ratings-scrape.ts) names the raters each chamber reads, today
+// Sabato's Crystal Ball alone, from its rating-changes page, and Cook's and
+// Inside Elections' rows stand as Ballotpedia last wrote them on 2026-09-30. It
+// was a separate route + cron because the cadence was daily from HO 771 (a stall
+// at 11:00Z cost a day, not a week, and the raters publish on any weekday) while
+// /api/sync runs every 6h (`0 */6`, vercel.json), and the work is unrelated to
+// the bill pipeline.
 //
 // Auth mirrors /api/sync and /api/sync-votes exactly: Bearer CRON_SECRET.
 // expireTag("race-ratings") flushes the cached race query helpers so
@@ -60,8 +68,10 @@
 // RESIDUAL, named: a run that crosses 55s for a NON-fetch reason — the writes
 // under a degraded DB (an every-rating week at #7557's rate), or a stalled
 // Turso request (lib/db.ts caps each at 10s and retries once) — still records
-// `timeout`, and /api/health still counts that as alive. That is a cron-health
-// question, not this route's; it is an OPEN LOOP in docs/backlog.md.
+// `timeout`. While /api/health watched this route (until HO 834) it counted that
+// as alive; since HO 834 the route is out of CRON_ROUTES and /api/health doesn't
+// read its runs. That is a cron-health question, not this route's; it is an
+// OPEN LOOP in docs/backlog.md.
 //
 // HO 139: migrated to wrapCronRoute.
 import { expireTag } from "@/lib/cache/expire-tag";

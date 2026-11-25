@@ -1,11 +1,18 @@
 // HO 220: rating-history change-detect cron. Daily, `0 15 * * *` (vercel.json),
 // and it logs a rating_history row only when a race_ratings value MOVES. First
 // run logs the baseline (one row per current rating); static days log zero.
-// Daily is enough: ratings move rarely, and the ratings sync runs daily, four
-// hours earlier (HO 771). No revalidate: MOVED reads rating_history through
-// getRecentRaceMoves (HO 768), whose cache holds an hour (`revalidate: 3600`,
-// tag `races`), so a move logged here shows within the hour. Bearer
-// CRON_SECRET, mirrors the other cron routes.
+// Daily is enough: ratings move rarely. No ratings sync is scheduled since HO
+// 834 (it ran daily, four hours earlier, from HO 771); a by-hand ingest writes
+// race_ratings, and this cron is the only thing that logs its moves to
+// rating_history (the sync logs only departures). MOVED reads rating_history
+// through getRecentRaceMoves (since HO 272), but shows a move only when HO 768's
+// guard (lib/move-freshness.ts) finds a `success` /api/sync-race-ratings run in
+// cron_runs that read the move's rater, close behind it. The CLI writes no
+// cron_runs row and no run has succeeded since Oct 11, so a by-hand ingest's
+// moves reach rating_history but not MOVED. No revalidate: getRecentRaceMoves's
+// cache holds an hour (`revalidate: 3600`, tag `races`), so a logged move the
+// guard passes shows within the hour. Bearer CRON_SECRET, mirrors the other
+// cron routes.
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
