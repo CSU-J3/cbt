@@ -84,46 +84,47 @@ export async function CompetitiveRacesBlock({
   showBattlefield?: boolean;
   fixture?: "max" | null;
 }) {
-  const pool = await getMostCompetitiveRaces(cycle, POOL);
+  // HO 836 — the block's reads go in three waves instead of one chain (C3 in HO
+  // 835's probe, docs/probes/835-cold-home-plan.md: 40 round trips end to end on
+  // a cold `/`). Wave 1 is everything that takes only the cycle: the pool and
+  // the five reads below, started together. Wave 2 waits on the pool alone (the
+  // featured ids). Wave 3 waits on each seat's getRace and roster, read
+  // together (it needs getRace's incumbent). The data each read gets, and so
+  // what renders, is unchanged.
+  // HO 779: the clock applied here, on the server. HO 836 reads it before wave
+  // 1, since the results read's gate needs it there.
+  const clockMs = clockNowMs();
+  const pastElection = daysToElection(cycle, clockMs) < 0;
+  const poolRead = getMostCompetitiveRaces(cycle, POOL);
+  const waveOne = Promise.all([
+    getRacesIndex(cycle),
+    getIncumbentQualifiers(cycle),
+    // HO 826: past election day the seats the results call are read, as
+    // /electoral reads them; before it no results are read.
+    pastElection ? getRaceResults(cycle) : Promise.resolve(null),
+    // HO 393: UDP IE direction rows per race, for the rich card's non-linked
+    // PAC SPENDING glance line (the clickable version lives on the /race hub +
+    // /electoral expands).
+    getPacIeSpending(cycle),
+    // The 6-month primaries rollup (HO 233), re-pointed at the NEXT PRIMARIES
+    // line by HO 657 — the sub-tab it was built for is gone. The QUERY is
+    // deliberately unchanged: the line consumes the same `cards`/`strip` payload
+    // the retired 2×2 grid did, so no SQL moved for a display merge.
+    getDashboardPrimaries(),
+  ]);
+  // When the pool is empty the block returns below with wave 1 still in flight.
+  // That's one wasted wave on an empty pool, and this handler keeps a failure in
+  // it from surfacing as an unhandled rejection. The awaits below still see any
+  // failure.
+  waveOne.catch(() => {});
+  const pool = await poolRead;
   const races = featuredRaces(pool); // Senate-led order
   if (races.length === 0) return null;
 
-  // HO 260: for the rich cards, pull the full rated-seat index (cached, tag
-  // `races`) and align each of the 6 cards to its rich row (incumbent join +
-  // cash + margin + 3 ratings + Kalshi + Polymarket). The competitive seats
-  // are a subset of the 137 rated, so every lookup resolves.
-  const { richRows, cases } = await (async () => {
-    // HO 759: the incumbent's tag rides on the rich row (RaceCard reads it).
-    const [raw, tags] = await Promise.all([getRacesIndex(cycle), getIncumbentQualifiers(cycle)]);
-    // HO 779: the clock applied here, on the server.
-    const clockMs = clockNowMs();
-    const tagged = withIncumbentTags(raw, incumbentTagsAt(tags, cycle, clockMs));
-    // HO 826: no market price on a called seat, and none the sync hasn't
-    // written in 24 hours (lib/electoral-rows.ts). Past election day the seats
-    // the results call are read here, as /electoral reads them; before it the
-    // set is empty and no results are read. The 24 hours run on the real clock.
-    const called =
-      daysToElection(cycle, clockMs) < 0 ? calledRaceIds(await getRaceResults(cycle), cycle, clockMs) : new Set<string>();
-    const nowMs = Date.now();
-    // The fixture swaps the index and the set BEFORE the rules run, so its
-    // cards pass through the shipped rules: `called` and `stale` draw nothing
-    // because the rules took their prices, `live` draws because they left it.
-    const seam = fixture
-      ? featuredWithMarketCases(tagged, races, called, nowMs)
-      : { index: tagged, called, cases: null };
-    const index = withoutCalledOdds(withoutStaleOdds(seam.index, nowMs), seam.called);
-    const byId = new Map(index.map((r) => [r.raceId, r]));
-    return { richRows: races.map((r) => byId.get(r.raceId) ?? null), cases: seam.cases };
-  })();
-
-  // HO 272: latest rating-move date per featured seat, for the cards' MOVED
-  // indicators (and, summed, the RACES-tab MOVES badge).
-  const moves = await getRecentRaceMoves(races.map((r) => r.raceId));
-
-  // HO 393: UDP IE direction rows per race, for the rich card's non-linked
-  // PAC SPENDING glance line (the clickable version lives on the /race hub +
-  // /electoral expands).
-  const pacByRace = await getPacIeSpending(cycle);
+  // Wave 2: on the featured ids. HO 272: latest rating-move date per featured
+  // seat, for the cards' MOVED indicators (and, summed, the RACES-tab MOVES
+  // badge).
+  const movesRead = getRecentRaceMoves(races.map((r) => r.raceId));
 
   // Fetch what each card reads off its seat: the race row, the candidate roster
   // (HO 274 party-lean resolution), and the news head (the NEW badge). All
@@ -137,31 +138,56 @@ export async function CompetitiveRacesBlock({
   // route rendered. It had already stopped mirroring /api/race/[id]/hub, which
   // was a zero-caller orphan in its own right and was DELETED at HO 665; the
   // full-hub shape lives on /race/[id], which fetches its own.
-  const [hubs, primariesData] = await Promise.all([
-    Promise.all(
-      races.map(async (r) => {
-        const race = await getRace(r.raceId);
-        if (!race) return null;
-        // HO 432: fetch the seat's incumbent news alongside the roster. N=3 (not
-        // the hub page's 8) keeps the RSC props lean. This is a distinct
-        // unstable_cache entry from the /race hub's getRaceNews(inc, 8), but both
-        // ride the `race-news` tag so the news cron flushes them together. Open
-        // seat → no incumbent join key → [].
-        const [candidates, news] = await Promise.all([
-          getRaceCandidates(race.id),
-          race.incumbent_bioguide_id
-            ? getRaceNews(race.incumbent_bioguide_id, 3)
-            : Promise.resolve([]),
-        ]);
-        return { race, candidates, news } as RaceHubData;
-      }),
-    ),
-    // The 6-month primaries rollup (HO 233), re-pointed at the NEXT PRIMARIES
-    // line by HO 657 — the sub-tab it was built for is gone. The QUERY is
-    // deliberately unchanged: the line consumes the same `cards`/`strip` payload
-    // the retired 2×2 grid did, so no SQL moved for a display merge.
-    getDashboardPrimaries(),
+  //
+  // HO 836: the roster is read beside the race row, on the featured id. getRace
+  // reads `WHERE id = ?` on races' primary key, so a race that resolves has
+  // exactly that id. A race that doesn't resolve still yields a null hub, and
+  // its roster is dropped. The news head is wave 3, on the resolved race's
+  // incumbent.
+  const hubsRead = Promise.all(
+    races.map(async (r) => {
+      const [race, candidates] = await Promise.all([getRace(r.raceId), getRaceCandidates(r.raceId)]);
+      if (!race) return null;
+      // HO 432: the seat's incumbent news. N=3 (not the hub page's 8) keeps
+      // the RSC props lean. This is a distinct unstable_cache entry from the
+      // /race hub's getRaceNews(inc, 8), but both ride the `race-news` tag so
+      // the news cron flushes them together. Open seat → no incumbent join key
+      // → [].
+      const news = race.incumbent_bioguide_id ? await getRaceNews(race.incumbent_bioguide_id, 3) : [];
+      return { race, candidates, news } as RaceHubData;
+    }),
+  );
+
+  const [[raw, tags, raceResults, pacByRace, primariesData], moves, hubs] = await Promise.all([
+    waveOne,
+    movesRead,
+    hubsRead,
   ]);
+
+  // HO 260: for the rich cards, the full rated-seat index (cached, tag
+  // `races`), with each of the 6 cards aligned to its rich row (incumbent join +
+  // cash + margin + 3 ratings + Kalshi + Polymarket). The competitive seats
+  // are a subset of the 137 rated, so every lookup resolves.
+  const { richRows, cases } = (() => {
+    // HO 759: the incumbent's tag rides on the rich row (RaceCard reads it).
+    const tagged = withIncumbentTags(raw, incumbentTagsAt(tags, cycle, clockMs));
+    // HO 826: no market price on a called seat, and none the sync hasn't
+    // written in 24 hours (lib/electoral-rows.ts). Past election day the seats
+    // the results call come from wave 1's getRaceResults (above), as /electoral
+    // reads them; before it the set is empty and no results are read. The 24
+    // hours run on the real clock.
+    const called = pastElection ? calledRaceIds(raceResults, cycle, clockMs) : new Set<string>();
+    const nowMs = Date.now();
+    // The fixture swaps the index and the set BEFORE the rules run, so its
+    // cards pass through the shipped rules: `called` and `stale` draw nothing
+    // because the rules took their prices, `live` draws because they left it.
+    const seam = fixture
+      ? featuredWithMarketCases(tagged, races, called, nowMs)
+      : { index: tagged, called, cases: null };
+    const index = withoutCalledOdds(withoutStaleOdds(seam.index, nowMs), seam.called);
+    const byId = new Map(index.map((r) => [r.raceId, r]));
+    return { richRows: races.map((r) => byId.get(r.raceId) ?? null), cases: seam.cases };
+  })();
 
   const strip = (
     <CompetitiveRacesStrip

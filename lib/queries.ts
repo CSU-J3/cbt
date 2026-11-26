@@ -2646,8 +2646,14 @@ export const getPacIeSpending = unstable_cache(
     // Adding `AND p.state IN (…)` was also tried and only halved it (151ms
     // worst) — it gives the planner a better filter, not a better drive order.
     // If this is ever "simplified" back to a flat JOIN, that 8x returns.
-    const contestRs = await db.execute({
-      sql: `WITH seat AS (
+    //
+    // HO 836: the three seat reads run together, since each takes only `seatIds`.
+    // They were awaited one after another, 4 serial round trips with the read
+    // above, where now it's 2 (C9 in HO 835's probe,
+    // docs/probes/835-cold-home-plan.md).
+    const [contestRs, rosterRs, ballotRs] = await Promise.all([
+      db.execute({
+        sql: `WITH seat AS (
               SELECT id, state, chamber, district FROM races WHERE id IN (${marks})
             )
             SELECT r.id AS race_id, p.id AS primary_id, p.primary_date,
@@ -2658,29 +2664,30 @@ export const getPacIeSpending = unstable_cache(
              AND ((p.district IS NULL AND r.district IS NULL)
                   OR CAST(p.district AS INTEGER) = r.district)
             CROSS JOIN primary_candidates pc ON pc.primary_id = p.id`,
-      args: seatIds,
-    });
-    const rosterRs = await db.execute({
-      // HO 757: `on_ballot` rows excluded, as defence in depth. classifyTarget's
-      // roster rungs are allow-lists (ROSTER_NOMINATED, ROSTER_WITHDRAWN) and
-      // already skip the status, so leg 2 reads the rungs the same with or
-      // without this; it keeps the roster this read hands on the one it handed
-      // on before HO 757.
-      sql: `SELECT race_id, name, status FROM race_candidates
+        args: seatIds,
+      }),
+      db.execute({
+        // HO 757: `on_ballot` rows excluded, as defence in depth. classifyTarget's
+        // roster rungs are allow-lists (ROSTER_NOMINATED, ROSTER_WITHDRAWN) and
+        // already skip the status, so leg 2 reads the rungs the same with or
+        // without this; it keeps the roster this read hands on the one it handed
+        // on before HO 757.
+        sql: `SELECT race_id, name, status FROM race_candidates
             WHERE race_id IN (${marks}) AND status IS NOT 'on_ballot'`,
-      args: seatIds,
-    });
-    // HO 765 — rung 0's evidence: the November ballot of each seat whose page
-    // reads a `box` (general_ballot_reads). The LEFT JOIN keeps a box seat with no
-    // rows (name NULL), so "has a box read" and "names this target" stay two facts;
-    // a seat absent here has no box read and gets no rung 0.
-    const ballotRs = await db.execute({
-      sql: `SELECT r.race_id, g.name, g.on_ballot, g.withdrawn, g.write_in, g.marked
+        args: seatIds,
+      }),
+      // HO 765 — rung 0's evidence: the November ballot of each seat whose page
+      // reads a `box` (general_ballot_reads). The LEFT JOIN keeps a box seat with no
+      // rows (name NULL), so "has a box read" and "names this target" stay two facts;
+      // a seat absent here has no box read and gets no rung 0.
+      db.execute({
+        sql: `SELECT r.race_id, g.name, g.on_ballot, g.withdrawn, g.write_in, g.marked
             FROM general_ballot_reads r
             LEFT JOIN general_ballot g ON g.race_id = r.race_id
             WHERE r.race_id IN (${marks}) AND r.status = 'box'`,
-      args: seatIds,
-    });
+        args: seatIds,
+      }),
+    ]);
 
     const contestsBySeat: Record<string, ContestRow[]> = {};
     for (const c of contestRs.rows)

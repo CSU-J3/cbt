@@ -89,11 +89,17 @@ export async function Battlefield({
   // takes its own left-aligned row (HO 758), so this touches the countdown only.
   packed?: boolean;
 }) {
-  const seats = await getBattlefieldSeats(cycle);
-  if (seats.length === 0) return null;
   // HO 758: once election day has passed (lib/format.ts's daysToElection, the
   // race page's gate), the ELECTION DAY line turns to the results line.
-  const results = daysToElectionFor(cycle, clockNowMs()) < 0 ? await getElectionResults(cycle) : null;
+  // HO 836: the results read doesn't take the seats, so the two run together
+  // (HO 835's probe, docs/probes/835-cold-home-plan.md, C3). An empty seat set
+  // past election day costs one results read it doesn't use.
+  const pastElection = daysToElectionFor(cycle, clockNowMs()) < 0;
+  const [seats, results] = await Promise.all([
+    getBattlefieldSeats(cycle),
+    pastElection ? getElectionResults(cycle) : Promise.resolve(null),
+  ]);
+  if (seats.length === 0) return null;
 
   const competitive = seats.filter(
     (s) => Math.abs(s.consensus) <= COMPETITIVE_MAX,
