@@ -6000,7 +6000,7 @@ export type AbsentMember = {
   //
   // `card === null` is the DEGRADED case and it is a real render state, not an
   // error: the row still shows from the base query and simply carries no expand
-  // affordance (see the per-member try/catch below). "Card data missing" must
+  // affordance (see the band's card read below, HO 836). "Card data missing" must
   // never collapse into "nobody is absent" — that is the HO 622 silent-wrong
   // answer one level up, and on this surface empty is the good-news state.
   card: AbsenceCardPayload | null;
@@ -6010,6 +6010,83 @@ export type AbsentMember = {
   palestineRank: number | null;
   palestineScore: string | null;
 };
+
+// HO 836 — the band's cards, read for the whole band at once: three SELECTs over
+// every band member, run together. They replace getMemberCardExpansion per
+// member, which was five cached readers a member (60 statements for 12 members on
+// a cold `/`, two of the five read and dropped: HO 835's probe,
+// docs/probes/835-cold-home-plan.md, C2). Not cached on its own, since it runs
+// inside absenceWatchCached, whose entry holds the result. Each read keeps the
+// predicates, forced index and order of the reader it stands in for:
+//   - stats.total: getSponsorStats' COUNT, every non-ceremonial bill, no summary
+//     gate. A member with no bills has no row and reads 0, as getSponsorStats'
+//     `Number(r?.total ?? 0)` did;
+//   - the first ABSENCE_BACK_BILLS_CAP bills: getSponsorRecentBills' rows and
+//     order (summary'd, non-ceremonial, latest action first, a tie broken on the
+//     forced index's columns then rowid, the tiebreak both gained at HO 836),
+//     numbered per sponsor;
+//   - committee names: getMemberCommittees' current committees, in its roster
+//     order, unsliced.
+// The cards come back in the projection's shape and key order (HO 647, below).
+async function readAbsenceCards(bios: string[]): Promise<Map<string, AbsenceCardPayload>> {
+  const db = getDb();
+  const marks = bios.map(() => "?").join(",");
+  const ceremonialClause = " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
+  const [statsRs, billsRs, cmteRs] = await Promise.all([
+    db.execute({
+      sql: `SELECT sponsor_bioguide_id AS bio, COUNT(*) AS total
+              FROM bills INDEXED BY idx_bills_sponsor_agg
+             WHERE sponsor_bioguide_id IN (${marks})${ceremonialClause}
+             GROUP BY sponsor_bioguide_id`,
+      args: bios,
+    }),
+    db.execute({
+      sql: `SELECT bio, bill_type, bill_number, rn FROM (
+              SELECT sponsor_bioguide_id AS bio, bill_type, bill_number,
+                     ROW_NUMBER() OVER (PARTITION BY sponsor_bioguide_id
+                                        ORDER BY latest_action_date DESC NULLS LAST, is_ceremonial ASC, stage ASC, congress ASC, rowid ASC) AS rn
+                FROM bills INDEXED BY idx_bills_sponsor_agg
+               WHERE sponsor_bioguide_id IN (${marks})
+                 AND summary IS NOT NULL${ceremonialClause}
+            ) WHERE rn <= ? ORDER BY bio, rn`,
+      args: [...bios, ABSENCE_BACK_BILLS_CAP],
+    }),
+    db.execute({
+      sql: `SELECT cm.bioguide_id AS bio, c.name AS name
+              FROM committee_members cm
+              JOIN committees c ON c.system_code = cm.committee_system_code
+              LEFT JOIN committees p ON p.system_code = c.parent_system_code
+             WHERE cm.bioguide_id IN (${marks}) AND c.is_current = 1
+             ORDER BY cm.bioguide_id,
+               c.parent_system_code IS NOT NULL ASC,
+               CASE c.committee_type
+                 WHEN 'Standing' THEN 1
+                 WHEN 'Select' THEN 2
+                 WHEN 'Joint' THEN 3
+                 WHEN 'Task Force' THEN 4
+                 ELSE 5
+               END,
+               COALESCE(p.name, '') ASC,
+               c.name ASC`,
+      args: bios,
+    }),
+  ]);
+  const cards = new Map<string, AbsenceCardPayload>();
+  for (const bio of bios) cards.set(bio, { stats: { total: 0 }, recentBills: [], committees: [] });
+  for (const r of statsRs.rows) {
+    const c = cards.get(String(r.bio ?? ""));
+    if (c) c.stats.total = Number(r.total ?? 0);
+  }
+  for (const r of billsRs.rows) {
+    const c = cards.get(String(r.bio ?? ""));
+    if (c) c.recentBills.push({ bill_type: r.bill_type as string, bill_number: r.bill_number as number });
+  }
+  for (const r of cmteRs.rows) {
+    const c = cards.get(String(r.bio ?? ""));
+    if (c) c.committees.push({ name: r.name as string });
+  }
+  return cards;
+}
 
 async function queryAbsenceWatch(): Promise<AbsenceWatch> {
   const db = getDb();
@@ -6051,8 +6128,8 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
 
   const out: AbsentMember[] = [];
   // HO 714 — the Phase-A window's oldest roll-call date per chamber, filled from
-  // the roll query below. Declared here rather than derived after the loop
-  // because the dates are only in hand INSIDE it.
+  // the roll query below. HO 836: each chamber's work returns its date beside its
+  // members, and both are filled in after the two chambers' reads.
   // Named `windowOldest` rather than `window` so it cannot shadow the DOM global
   // in a module that is imported by both server and client trees.
   const windowOldest: { house: string | null; senate: string | null } = {
@@ -6060,7 +6137,14 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
     senate: null,
   };
 
-  for (const chamber of ABSENCE_CHAMBERS) {
+  // HO 836 — the two chambers run together (C8 in HO 835's probe,
+  // docs/probes/835-cold-home-plan.md). Each chamber's three reads stay in
+  // sequence, since each takes the one before's result. Each chamber collects
+  // its own members and window date. They're appended below in
+  // ABSENCE_CHAMBERS order, never pushed from inside the concurrent work, so
+  // `out` and `windowOldest` come out as the serial loop left them.
+  const chamberResults = await Promise.all(ABSENCE_CHAMBERS.map(async (chamber) => {
+    const found: AbsentMember[] = [];
     // One roll-call read per chamber serves both phases: Phase A takes the first
     // ABSENCE_WINDOW, Phase B the whole bound. Rides idx_votes_chamber_date.
     // `id DESC` is a deterministic tiebreak only — same-timestamp rolls have no
@@ -6080,10 +6164,10 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
     // whichever is smaller so a chamber holding fewer than W rolls reports the
     // oldest it actually has, and a chamber holding none reports null — both
     // real states at a Congress rollover, and neither is a failed read. Set
-    // BEFORE the zero guard below so the assignment is unconditional.
-    windowOldest[chamber] =
+    // BEFORE the zero guard below so every return carries it.
+    const oldest =
       rollDates[Math.min(ABSENCE_WINDOW, rollDates.length) - 1] ?? null;
-    if (rollIds.length === 0) continue;
+    if (rollIds.length === 0) return { oldest, found };
 
     // ── Phase A — candidates ────────────────────────────────────────────────
     const windowIds = rollIds.slice(0, ABSENCE_WINDOW);
@@ -6101,7 +6185,7 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
     const candidates = candRes.rows
       .map((r) => String(r.bio ?? ""))
       .filter((bio) => pop.get(bio)?.chamber === chamber);
-    if (candidates.length === 0) continue;
+    if (candidates.length === 0) return { oldest, found };
 
     // ── Phase B — the bounded walk, ONE query for every candidate ───────────
     const candPh = candidates.map(() => "?").join(",");
@@ -6149,7 +6233,7 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
         ? (rollDates[rollDates.length - 1] ?? "")
         : (rollDates[breakIndex] ?? "");
 
-      out.push({
+      found.push({
         bioguideId: bio,
         name: meta.name,
         party: meta.party,
@@ -6163,13 +6247,19 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
         missedVotes: meta.missedVotes,
         totalVotes: meta.totalVotes,
         congress: meta.congress,
-        card: null, // filled below, per member, so one failure can't empty the band
+        card: null, // filled below from the band's one card read
         palestineGrade: null,
         palestineRank: null,
         palestineScore: null,
       });
     }
-  }
+    return { oldest, found };
+  }));
+  ABSENCE_CHAMBERS.forEach((chamber, i) => {
+    const r = chamberResults[i]!;
+    windowOldest[chamber] = r.oldest;
+    out.push(...r.found);
+  });
 
   // TIER FIRST, then longest absence, then name as the deterministic tiebreak.
   // Tier leads rather than streak because the two tiers are different claims: a
@@ -6184,12 +6274,16 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
       a.name.localeCompare(b.name),
   );
 
-  // ── HO 630 — card prefetch, per member, AFTER the sort ─────────────────────
-  // Bounded by band membership, which the streak >= 30 rule holds to a handful
-  // (2 today). Each member is assembled independently and a failure degrades ONLY
-  // that member to identity-only: the row still renders and the band still names
-  // everyone it found. A single try/catch around the whole loop would let one bad
-  // member cost every card in the band, and hoisting it any further would let it
+  // ── HO 630 — card prefetch, AFTER the sort ─────────────────────────────────
+  // Bounded by band membership, which the streak floor holds to a handful: 30 at
+  // HO 630 (2 members), ABSENCE_WARN_MIN (8) since HO 645's at-risk tier (12 at
+  // HO 836, 1 of them at >= 30). Until HO 836 each member was assembled
+  // independently from five cached readers, and a failure degraded ONLY that
+  // member to identity-only. HO 836: the band's cards are one read
+  // (readAbsenceCards, above), so its failure degrades EVERY member to
+  // identity-only at once. Each row still renders and the band still names
+  // everyone it found, the render each member's own failure gave before. The
+  // try/catch sits around that one read, and hoisting it any further would let it
   // cost the band itself.
   //
   // `includeCeremonial: false` is the app-wide default and the dashboard's framing
@@ -6215,48 +6309,44 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
       });
     }
 
-    await Promise.all(
-      out.map(async (m) => {
-        const s = scores.get(m.bioguideId);
-        if (s) {
-          m.palestineGrade = s.grade;
-          m.palestineRank = s.rank;
-          m.palestineScore = s.score;
-        }
-        try {
-          const expansion = await getMemberCardExpansion(m.bioguideId, false);
-          // HO 647 — PROJECT AT THE CONSUMER, not in the shared helper. The band
-          // caches exactly the six values AbsenceCardBack prints and nothing else.
-          //
-          // It used to spread the whole MemberCardExpansion and slice one key.
-          // Measured on the cached blob (HO 645 probe M4, 2026-08-11): 29,520 B
-          // for two members, of which `recentBills` was 23,098 B / 78.2% — ten
-          // FeedBills carrying title and summary, serialized so that three bill
-          // numbers could be joined with a "·" — while `topics` and `affiliations`
-          // were cached for no consumer at all. A spread carries whatever the
-          // shared helper happens to return; naming the fields is what stops the
-          // next field added to MemberCardExpansion from silently landing here.
-          //
-          // COMMITTEES ARE PROJECTED BUT NOT SLICED, and the asymmetry against
-          // recentBills is deliberate: the back's "+N" closer counts off
-          // `cmtes.length - CMTE_CAP`, i.e. the FULL array, so slicing here would
-          // make that closer silently under-report. recentBills is safe to slice
-          // only because its closer counts off stats.total instead (HO 631 moved
-          // it there) — and Math.min(CAP, bills.length) is unchanged for a member
-          // with fewer than CAP sponsored bills.
-          m.card = {
-            stats: { total: expansion.stats.total },
-            recentBills: expansion.recentBills
-              .slice(0, ABSENCE_BACK_BILLS_CAP)
-              .map((b) => ({ bill_type: b.bill_type, bill_number: b.bill_number })),
-            committees: expansion.committees.map((c) => ({ name: c.name })),
-          };
-        } catch (err) {
-          console.error(`[absence-watch] card assembly failed for ${m.bioguideId}:`, err);
-          m.card = null; // identity-only; the row survives, the band survives
-        }
-      }),
-    );
+    let cards: Map<string, AbsenceCardPayload> | null = null;
+    try {
+      cards = await readAbsenceCards(out.map((m) => m.bioguideId));
+    } catch (err) {
+      console.error(`[absence-watch] card read failed for the band's ${out.length} members:`, err);
+    }
+    for (const m of out) {
+      const s = scores.get(m.bioguideId);
+      if (s) {
+        m.palestineGrade = s.grade;
+        m.palestineRank = s.rank;
+        m.palestineScore = s.score;
+      }
+      // HO 647 — PROJECT AT THE CONSUMER, not in the shared helper. The band
+      // caches exactly the six values AbsenceCardBack prints and nothing else.
+      //
+      // It used to spread the whole MemberCardExpansion and slice one key.
+      // Measured on the cached blob (HO 645 probe M4, 2026-08-11): 29,520 B
+      // for two members, of which `recentBills` was 23,098 B / 78.2% — ten
+      // FeedBills carrying title and summary, serialized so that three bill
+      // numbers could be joined with a "·" — while `topics` and `affiliations`
+      // were cached for no consumer at all. A spread carries whatever the
+      // shared helper happens to return; naming the fields is what stops the
+      // next field added to MemberCardExpansion from silently landing here.
+      //
+      // COMMITTEES ARE PROJECTED BUT NOT SLICED, and the asymmetry against
+      // recentBills is deliberate: the back's "+N" closer counts off
+      // `cmtes.length - CMTE_CAP`, i.e. the FULL array, so slicing here would
+      // make that closer silently under-report. recentBills is safe to slice
+      // only because its closer counts off stats.total instead (HO 631 moved
+      // it there) — and Math.min(CAP, bills.length) is unchanged for a member
+      // with fewer than CAP sponsored bills.
+      //
+      // HO 836: readAbsenceCards reads exactly these six values, in this shape.
+      // The bills cap is its window's `rn <= ABSENCE_BACK_BILLS_CAP`, and the
+      // committees come unsliced.
+      m.card = cards?.get(m.bioguideId) ?? null; // null: identity-only; the row survives, the band survives
+    }
   }
 
   return { members: out, window: windowOldest };
@@ -8022,6 +8112,15 @@ export const getSponsorRecentBills = unstable_cache(
     // equals a sponsor_name), and it dropped the planner onto idx_bills_is_ceremonial
     // (MULTI-INDEX OR over ~every non-ceremonial row → cold-abort 500, HO 277/329
     // misplan class). INDEXED BY is mandatory — the statless planner won't pick it.
+    // HO 836: a latest-action-date tie breaks on `is_ceremonial, stage, congress,
+    // rowid`, the forced index's own columns (idx_bills_sponsor_agg,
+    // scripts/migrate.ts:1509) and then rowid. That's the order ties came out in
+    // before HO 836, when the order stopped at the date and SQL promised nothing.
+    // Now it's defined. /members and the absence band's card read
+    // (readAbsenceCards) order tied bills the same way. Measured at HO 836 against
+    // this reader at 9b457fa, it moves no current member's bills, by default or
+    // with ceremonial bills shown, where `rowid ASC` alone would have moved 25 and
+    // 60 of 538 (HO 836's ruling, docs/handoffs/836-ff-go.md).
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
@@ -8029,7 +8128,7 @@ export const getSponsorRecentBills = unstable_cache(
       FROM bills INDEXED BY idx_bills_sponsor_agg
       WHERE sponsor_bioguide_id = ?
         AND summary IS NOT NULL${ceremonialClause}
-      ORDER BY latest_action_date DESC NULLS LAST`;
+      ORDER BY latest_action_date DESC NULLS LAST, is_ceremonial ASC, stage ASC, congress ASC, rowid ASC`;
     const rs = await db.execute({ sql, args: [sponsorKey] });
     return rs.rows.map(rowToFeedBill);
   },
