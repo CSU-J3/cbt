@@ -4012,3 +4012,33 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - SKILL's scheduled-cron calibration gains claim 11's median and max.
   - No oddity: claim 9 and B found Next serving a stale entry as HO 834 assumed.
 - **Also notes now run through HO 835.**
+
+**Also (HO 836): a cold `/` asks less and waits less. The race pool and the absence band's cards are batched, the band's chambers run together, and the races block's reads go in waves; `/`, `/electoral` and `/welcome` render the same HTML.** Built on `9b457fa`, on `836-review`.
+
+- **HO 835's FF, taken:** `main` went `710b20a..9b457fa` at 12:38:44 PM MST Nov 26, no force. Production record `8094425362`, ready at 12:39:43 PM, served by 12:39:48 PM. `ci.yml` `45885184273`.
+  - `e2e-prod` `45885297497`: 237 of 237, the smoke job 8m54s. `/api/health` 200 over 18 routes.
+  - No `/api/sync-race-ratings` row in `cron_runs` after 11:00 UTC Nov 26. `rating-history` logged 0 of 276 at 8:00 AM.
+- **STEP 0 held, claims 1 to 12.**
+  - Claim 7: wave 2 can pass `getRaceCandidates` the featured id, since `getRace` reads `races`' primary key.
+  - Claim 10: 13 of 30 races tie on `updated_at`, and 7 of 12 band members on a bill date in their first three. `rowid ASC` reproduces every one, and no other of the four candidates does. It stays the ratings' tiebreak; the bills took the forced index's order (below).
+  - Claim 11: both failing scheduled runs were assertions, not timeouts, and neither is open. Claim 12: § 1 touches none of HO 835's 13 SKILL lines.
+- **§ 1:**
+  - C1 reads the pool in two batched reads (61 statements to 3).
+  - C2's `readAbsenceCards` reads the band's cards in three, and C8 runs its two chambers together (68 to 11).
+  - C3 issues the races block's reads in three waves, C9 runs PAC IE's seat reads together, and `Battlefield`'s two reads run together.
+  - `getSponsorRecentBills` gains the bills window's tiebreak.
+- **The legs:**
+  - A: the built pool and band deep-equal and byte-equal the base's, run from `9b457fa`'s tree. Base against base is equal, and each proof's controls fire.
+  - B (`docs/probes/835-cold-home-plan.md`, *HO 836's build*): `/` 88, `/electoral` 23, `/welcome` 30, all inside ± 3, and aged 2 h, 68. The band ends at 608 ms (1,577), 86 ms after the page's other reads. Walked back from the last request by end time, the races block's chain is 3 round trips (40) and the load's 6 (53); by the code's awaits the deepest chain is 11.
+  - C: `/`, `/electoral` and `/welcome` are equal base against tip, twice, the second time from emptied data caches. Two loads of one build are equal under four named rules, and a one-character plant reads.
+  - D: only `lib/queries.ts`, `components/CompetitiveRacesBlock.tsx` and `components/Battlefield.tsx`.
+- **Flagged in the paste:**
+  - the bills tiebreak was built `rowid ASC`, which moved tied bills on 25 of 538 `/members` cards (60 with ceremonial bills shown). The review ruled the forced index's columns then `rowid`, which moves none (`836-ff-go.md`);
+  - a failed card read now leaves the whole band identity-only;
+  - SKILL `:2445` and `:2465`, outside claim 12's list, corrected as forced consequences;
+  - SKILL has no section on how a cached reader reads many rows, so no sentence was added;
+  - the slow-spells line (*Slow spells reading prod's store*, HO 829) that the handoff calls line 18 was line 20 at `9b457fa`.
+- **The docs:**
+  - The cold-`/` line is struck by Leg B. C7 and C11's line opens, with C11 moot, and so does the `members` line. The slow-spells and late-runs lines gain a clause.
+  - Reconcile 287 / 403 / 690 at open, 288 / 404 / 692 at close.
+- **Also notes now run through HO 836.**

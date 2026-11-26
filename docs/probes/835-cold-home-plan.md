@@ -347,3 +347,28 @@ Read about 5:50 to 6:40 PM MST Nov 25 (00:50 to 01:40 UTC Nov 26): 91 queries wi
 - **A defined order for the two batched reads.** C1's ratings and C2's bills both have ties on their sort keys. The proofs matched the shipped order by observation, and HO 836 should add a tiebreak.
 - **How often the crons actually reached their flushes.** C6 reads the code, not `cron_runs`.
 - **The re-keying of 5 readers at HO 833's deploy** (HO 834's instrument skipped them).
+
+## HO 836's build
+
+*Added at HO 836; the plan above stays as written.* HO 836 built C1, C2 with C8 and C3 with C9, as ruled in `835-ff-go.md`. The ratings order gains a `rowid ASC` tiebreak, and the bills order gains the forced index's columns and then `rowid` (`is_ceremonial, stage, congress, rowid`), as ruled in `836-ff-go.md`. This probe's instrument (`scripts/diagnostic/home-cold-plan-835.ts` and its preload, every store request under the guard) read a production build of HO 836's tip against prod's store at 2:08 to 2:12 PM MST Nov 26, 2026. Each cold load ran on an emptied `.next/cache/fetch-cache` with a fresh server, and the stale loads aged every entry's mtime as § 1.B did.
+
+| Reading | The plan's estimate | HO 836's build | At HO 835 |
+|---|---|---|---|
+| `/`, cold | about 88 requests | **88** (102 statements) | 203 (217) |
+| `/electoral`, cold | about 23 | **23** (47) | 81 |
+| `/welcome`, cold | about 30 | **30** (34) | 52 |
+| `/`, aged 2 h (§ 1.B.1) | about 67 | **68** (79) | 124 |
+| The race pool | 3 statements, 2 round trips | **3**, 2 | 61, 31 |
+| The absence band | 11 statements | **11**, ending at **608 ms** | 68, ending at 1,577 ms |
+| The band against the page's other reads | | ends **86 ms** after them (they end at 522 ms) | 1,041 ms after (536) |
+| The races block's chain (the walk back from its last request) | about 4 round trips | **3** round trips, a 463 ms wall; 4 deep by its awaits | 40, 1,761 ms |
+| The walk back from the load's last request (HO 835's open walk, linked by end time) | | **6** round trips, 969 ms of store time; by the code's awaits the deepest chain is 11 | 53, 2,934 ms |
+| First byte, one local load (not bounded) | | 1,244 ms | 3,509 ms |
+
+- **The races block, by the code's awaits:** the pool's first read (654 to 701 ms), its two batched reads (758 to 863), then wave 2, where `getRecentRaceMoves` ends last (867 to 1,095). PAC IE's three seat reads run together (763 to 822), the news reads start once each seat's `getRace` and roster are both in (911 to 921), and `Battlefield`'s two reads run together (1,125 to 1,187).
+- **The walk from the load's last request** now runs `getCorpusStats`, then four of the band's reads, then `getCommitteesIndex`, a single 565 ms request. It links by end time, so `getCorpusStats` stands in for the band's first reads. By the code's awaits, the deepest chain is 11 round trips: the band's six (roster, rolls, candidates, walk, scores, cards), the races block's four (the pool's first read, its batch, `getRace` with the roster, the news), then `Battlefield`'s one.
+- **Stale, beyond § 1.B.1:** B.2 (the same URL at once) asked 13 (75 at HO 835), B.2b 2 (2), and B.3 (aged 25 h) 86 (201).
+- **The same data:**
+  - The built pool and band deep-equal and byte-equal the base's (`9b457fa`, run from a worktree of it) for `(2026, 30)`, `(2026, 12)` and all 12 band members' cards. Two base runs, before and after the tip's, equal each other.
+  - `/`, `/electoral` and `/welcome` render the same HTML on the base's build and the tip's, after a normalization that two loads of one build read equal under.
+  - The bills tiebreak moves nothing on `/members` either. It breaks a tie in the order ties came out in before HO 836, so no current member's bills move against the reader at `9b457fa`, by default or with ceremonial bills shown. `rowid ASC` alone, the first build, would have moved 25 and 60 of 538 (HO 836's review).
