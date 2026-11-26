@@ -3972,3 +3972,43 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - No HO 835 line and no oddity: both were conditional on (a) or (b).
   - SKILL: the Sabato bullet, the cron count and line, the `rating-history` line, and the registry count.
 - **Also notes now run through HO 834.**
+
+**Also (HO 835): a read-only plan probe of a cold `/`: which reader asks what, what a stale load costs, and three builds proposed for HO 836; the late scheduled `e2e-prod` runs get a backlog line.** Built on `710b20a`, on `835-review`.
+
+- **HO 834's FF, taken:** `main` went `9b965e5..710b20a` at 4:38:27 PM MST Nov 25, no force. Production record `8072307482`, ready at 4:39:10.4 PM, served from between about 4:39:12.5 and 4:39:16 PM. `ci.yml` `45722918572`.
+  - `e2e-prod` `45723004474`: 237 of 237, no flaky, the smoke job 9m18s. `check:bills-plans` 32 of 32 against prod.
+  - `/api/health` 200, `healthy: true`, 18 routes: the first 200 since about Oct 10.
+- **Claim 4, the ratings route's first unscheduled morning:** not yet due at 5:45 PM MST Nov 25; it carries to the next session (no `cron_runs` row after 11:00 UTC Nov 26).
+- **STEP 0 held, claims 1 to 12,** except claim 7's chain, which is longer than the chat's: `getRaceResults`, `Battlefield`'s two reads, and the page's `Promise.all` gate. No link the chat called independent depends on another read.
+  - Claim 9: an entry's age is its file's mtime. A stale entry is served at once, and its refresh starts during the render without the response waiting for it.
+  - Claim 10: `unstable_cache` always keys on the callback's text. Claim 11: the last 30 scheduled `e2e-prod` runs fired a median of 6 h 09 m and at most 11 h 01 m late.
+- **§ 1 (`docs/probes/835-cold-home-plan.md`):** a cold `/` asks 203 requests (217 statements), first byte at 3.5 s locally. 43 readers, every statement attributed.
+  - The race pool is 61 statements in 31 serial round trips. The absence band is 68, and it holds the page until 1,577 ms.
+  - A stale `/` (§ 1.B) asks 124 (aged 2 h, 62 after the response) or 201 (aged 25 h, 114 after). How much of its wait is stale entries can't be said locally.
+  - Production (§ 1.C): the late crawl's first loads after idle took 0.97 to 2.3 s. In 7¼ days, 17 renders outside crawls passed 2 s, about 2.3 a day, a median of 2.9 s. Concurrent loads outside crawls: 3 at most.
+- **The plan:**
+  - for HO 836: C1 (batch the race pool), C2 with C8 (the band's card in three batched reads, its chambers together) and C3 with C9 (unchain the races block);
+  - to Corey: C5, C6, C7 and C11;
+  - skipped: C4 and C10.
+  - The C1 and C2 proofs deep-equal the shipped readers under the guard.
+- **The legs:**
+  - A: 13 guard logs, 1,618 statements passed, all reads, none refused;
+  - B: the 43 rows sum to 217 and 203;
+  - C: both proofs green;
+  - D: nothing outside `docs/`, `.claude/` and `scripts/diagnostic/` moved.
+- **Gates:** each commit built on its own, secretless (typecheck, the e2e tsc, the four checks, 64 routes).
+- **Flagged in the paste:**
+  - HO 834's key comparison skipped 28 call sites, so its *12 of 42 re-keyed* is a floor (up to 17);
+  - the batched orders match only by observation, so HO 836 should add tiebreaks;
+  - C7 goes to Corey though the readings can't split a stale `/` from a cold instance;
+  - C4 is skipped though one concurrent pair outside a crawl waited about 9 s;
+  - a bound callback is a third path for C5;
+  - B.2 met stale entries again (75 requests);
+  - `members` has no flusher;
+  - 13 SKILL lines the readings make false (none changed);
+  - no hash came with the handoff.
+- **The docs:**
+  - The backlog gains the HO 836 line and the late-runs line. The slow-spells line gains C.2's clause. Reconcile 285 / 403 / 688 at open, 287 / 403 / 690 at close.
+  - SKILL's scheduled-cron calibration gains claim 11's median and max.
+  - No oddity: claim 9 and B found Next serving a stale entry as HO 834 assumed.
+- **Also notes now run through HO 835.**
