@@ -2944,36 +2944,60 @@ export const getMostCompetitiveRaces = unstable_cache(
             LIMIT ?`,
       args: [cycle, limit],
     });
+    const raceIds = rs.rows.map((row) => row.race_id as string);
+    if (raceIds.length === 0) return [];
 
+    // Detail fetch: ratings + incumbent join, each ONE read over the whole pool,
+    // the two run together. HO 836: these were two reads per race in a serial
+    // loop, 60 statements in 30 round trips for the 30-race pool on a cold `/`
+    // (61 in 31 with the first read above: HO 835's probe,
+    // docs/probes/835-cold-home-plan.md, C1). The ratings sort
+    // race by race as the per-race read did; `rowid ASC` breaks `updated_at`
+    // ties (13 of the 30 races held one at HO 836's STEP 0) in the order the
+    // per-race read returned them, which came off idx_ratings_race in rowid
+    // order. Without it the order of tied ratings was SQLite's to choose. LEFT
+    // JOIN because the rating may exist before the race row (race_ratings has
+    // no FK), and the race row may exist without an incumbent (open seat).
+    // races.id is the primary key, so each race has at most one row.
+    const marks = raceIds.map(() => "?").join(", ");
+    const [detail, raceRows] = await Promise.all([
+      db.execute({
+        sql: `SELECT id, race_id, source, rating, rating_score, rating_date,
+                source_url, cycle, updated_at
+              FROM race_ratings
+              WHERE race_id IN (${marks})
+              ORDER BY race_id, updated_at DESC, rowid ASC`,
+        args: raceIds,
+      }),
+      db.execute({
+        sql: `SELECT r.id AS race_id, r.chamber, m.name AS incumbent_name,
+                m.party AS incumbent_party,
+                m.bioguide_id AS incumbent_bioguide_id
+              FROM races r
+              LEFT JOIN members m
+                ON m.bioguide_id = r.incumbent_bioguide_id
+              WHERE r.id IN (${marks})`,
+        args: raceIds,
+      }),
+    ]);
+    const ratingRowsByRace = new Map<string, Record<string, unknown>[]>();
+    for (const r of detail.rows) {
+      const k = r.race_id as string;
+      const list = ratingRowsByRace.get(k);
+      if (list) list.push(r as Record<string, unknown>);
+      else ratingRowsByRace.set(k, [r as Record<string, unknown>]);
+    }
+    const metaByRace = new Map<string, Record<string, unknown>>();
+    for (const r of raceRows.rows) {
+      const k = r.race_id as string;
+      if (!metaByRace.has(k)) metaByRace.set(k, r as Record<string, unknown>);
+    }
+
+    // Assembled in the first read's order.
     const out: CompetitiveRace[] = [];
-    for (const row of rs.rows) {
-      const raceId = row.race_id as string;
-      // Detail fetch: ratings + incumbent join in two queries. LEFT JOIN
-      // because the rating may exist before the race row (race_ratings has
-      // no FK), and the race row may exist without an incumbent (open seat).
-      const [detail, raceRow] = await Promise.all([
-        db.execute({
-          sql: `SELECT id, race_id, source, rating, rating_score, rating_date,
-                  source_url, cycle, updated_at
-                FROM race_ratings
-                WHERE race_id = ?
-                ORDER BY updated_at DESC`,
-          args: [raceId],
-        }),
-        db.execute({
-          sql: `SELECT r.chamber, m.name AS incumbent_name,
-                  m.party AS incumbent_party,
-                  m.bioguide_id AS incumbent_bioguide_id
-                FROM races r
-                LEFT JOIN members m
-                  ON m.bioguide_id = r.incumbent_bioguide_id
-                WHERE r.id = ?
-                LIMIT 1`,
-          args: [raceId],
-        }),
-      ]);
-      const ratings = detail.rows
-        .map((r) => rowToRaceRating(r as Record<string, unknown>))
+    for (const raceId of raceIds) {
+      const ratings = (ratingRowsByRace.get(raceId) ?? [])
+        .map((r) => rowToRaceRating(r))
         .filter((x): x is RaceRating => x !== null);
       const first = ratings[0];
       if (!first) continue;
@@ -2982,7 +3006,7 @@ export const getMostCompetitiveRaces = unstable_cache(
           Math.abs(r.ratingScore) < Math.abs(best) ? r.ratingScore : best,
         first.ratingScore,
       );
-      const meta = raceRow.rows[0];
+      const meta = metaByRace.get(raceId);
       const chamberRaw = (meta?.chamber as string | undefined) ?? null;
       const chamber =
         chamberRaw === "house" || chamberRaw === "senate" ? chamberRaw : null;
