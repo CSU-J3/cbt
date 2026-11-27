@@ -26,6 +26,21 @@
 //   5. the ideology strip and the polarization band (the HO 838 ruling 4): over
 //      rows at 119 and 120 they read the 120 rows, and over rows all at 119
 //      they read all of them (lib/congress.ts, SCORES_CONGRESS_SQL).
+// HO 839 added (838-ff-go.md rulings 2 and 5):
+//   6. the tail's window as an argument: previousCongressTail(now, 21), the
+//      bills sync's, is { 119, 2 } through 2027-01-23T23:59:59.999Z and null
+//      from 2027-01-24T00:00:00Z; with 7 days it reads as case 2;
+//   7. the lobbying sync's filing years (lobbyingFilingYears): [2025, 2026]
+//      today and through 2027-01-02, [2026, 2027, 2028] from
+//      2027-01-03T00:00:00Z through 2027-02-15T23:59:59Z (Feb 15 inclusive, to
+//      the end of the day UTC), and [2027, 2028] from 2027-02-16T00:00:00Z;
+//   8. the bills tail's start frontier (billsTailStart): the lower of the
+//      stored frontier and the switch less 48 hours, for a frontier before the
+//      switch, one stuck days before it, and one already past it;
+//   9. the label helpers for scope-table rows 5 to 9 (polarizationAxis,
+//      productivityHeading): scores' Congress 119 gives GAP · 119TH, a line
+//      ending at 118, a dot at 2025 and "the 118th"; 120 gives GAP · 120TH,
+//      119, 2027 and "the 119th".
 //
 // THE CONTROLS (HO 838, guard 5: a clock-set case proves a boundary only if
 // the old code fails it). Each case is also run against the code it replaces,
@@ -33,20 +48,29 @@
 // shape (the `118 | 119` pair, CONGRESS_START, the two literal tables), case 2
 // against no helper (the route synced only the current Congress), case 3
 // against houseTermEnd, case 4 against the hub's calendar-year comparison, and
-// case 5 against the unfiltered queries. The check is red unless every case
+// case 5 against the unfiltered queries; and (HO 839) case 6 against HO 838's
+// fixed 7-day helper, case 7 against the years derived from the congress
+// alone, case 8 against no tail (the bills sync listed the current Congress
+// only), and case 9 against the constants (GAP · 119TH, 118, 2025 and the
+// 118th heading). The check is red unless every case
 // holds on the code AND fails on its old counterpart, so a control that stops
 // firing turns CI red too.
 //
 //   npm run check:rollover
 import { createClient } from "@libsql/client";
 import {
+  billsTailStart,
+  congressTermDates,
   cycleYear,
   electionCellFor,
   enactedLawsSource,
   getCurrentCongress,
   lawsComparisonPair,
+  lobbyingFilingYears,
   ordinal,
+  polarizationAxis,
   previousCongressTail,
+  productivityHeading,
   SCORES_CONGRESS_SQL,
   weekOfSession,
 } from "../lib/congress";
@@ -213,6 +237,95 @@ const BAND = `SELECT mi.bioguide_id AS bioguideId
   }
   db.close();
   cases.push({ name: "5. the strip and the band read the scores' Congress only", checks });
+}
+
+// ── The old code HO 839 replaced, from 01e515c ──────────────────────────────
+// lib/congress.ts: HO 838's previousCongressTail, the window fixed at 7 days.
+const oldTail7 = (now: Date) => {
+  const current = getCurrentCongress(now);
+  if (getCurrentCongress(new Date(now.getTime() - 7 * 86_400_000)) === current) return null;
+  return { congress: current - 1, session: 2 };
+};
+// lib/lda-sync.ts:427-430: the years from the congress alone.
+const oldLobbyingYears = (now: Date) => {
+  const firstYear = 2025 + (getCurrentCongress(now) - 119) * 2;
+  return [firstYear, firstYear + 1];
+};
+// lib/sync.ts: no tail; the listing named getCurrentCongress() alone.
+const oldBillsTailStart = (_frontier: string, _switchMs: number): string | null => null;
+// components/PolarizationOverTime.tsx:30-37 and :258, app/reports/page.tsx:69: constants.
+const oldAxis = (_scores: number) => ({ gapLabel: "GAP · 119TH", lineEndCongress: 118, dotYear: 2025 });
+const oldHeading = (_previous: number) => "Productivity vs. the 118th";
+
+// ── 6. The tail's window ────────────────────────────────────────────────────
+// [2027-01-03T00:00:00Z, 2027-01-24T00:00:00Z) for 21 days; the 7-day window
+// is case 2's.
+{
+  const T = { congress: 119, session: 2 };
+  const checks: Check[] = [];
+  for (const [iso, days, want] of [
+    ["2027-01-02T23:59:59Z", 21, null],
+    ["2027-01-03T00:00:00Z", 21, T],
+    ["2027-01-10T00:00:00Z", 21, T],
+    ["2027-01-23T23:59:00Z", 21, T],
+    ["2027-01-23T23:59:59.999Z", 21, T],
+    ["2027-01-24T00:00:00Z", 21, null],
+    ["2027-01-09T23:59:59.999Z", 7, T],
+    ["2027-01-10T00:00:00Z", 7, null],
+  ] as const) {
+    checks.push({ what: `the ${days}-day tail at ${iso}`, want, got: previousCongressTail(at(iso), days), old: oldTail7(at(iso)) });
+  }
+  cases.push({ name: "6. the tail's window is an argument: 21 days for the bills sync, 7 for the votes and nominations", checks });
+}
+
+// ── 7. The lobbying sync's filing years ─────────────────────────────────────
+{
+  const checks: Check[] = [];
+  for (const [iso, want] of [
+    ["2026-11-27T12:00:00Z", [2025, 2026]],
+    ["2027-01-02T23:59:59Z", [2025, 2026]],
+    ["2027-01-03T00:00:00Z", [2026, 2027, 2028]],
+    ["2027-02-15T23:59:00Z", [2026, 2027, 2028]],
+    ["2027-02-15T23:59:59.999Z", [2026, 2027, 2028]],
+    ["2027-02-16T00:00:00Z", [2027, 2028]],
+    ["2029-01-03T00:00:00Z", [2028, 2029, 2030]],
+  ] as const) {
+    checks.push({ what: `the filing years at ${iso}`, want, got: lobbyingFilingYears(at(iso)).years, old: oldLobbyingYears(at(iso)) });
+  }
+  cases.push({ name: "7. the lobbying sync keeps the previous filing year through Feb 15", checks });
+}
+
+// ── 8. The bills tail's start frontier ──────────────────────────────────────
+{
+  const sw = congressTermDates(120).start.getTime(); // 2027-01-03T00:00:00Z
+  const checks: Check[] = [];
+  for (const [what, frontier, want] of [
+    ["a frontier six hours before the switch", "2027-01-02T18:00:00Z", "2027-01-01T00:00:00Z"],
+    ["a frontier stuck three days before it", "2026-12-31T00:00:00Z", "2026-12-31T00:00:00Z"],
+    ["a frontier already past it (the tail's first tick came late)", "2027-01-05T06:00:00Z", "2027-01-01T00:00:00Z"],
+  ] as const) {
+    checks.push({ what, want, got: billsTailStart(frontier, sw), old: oldBillsTailStart(frontier, sw) });
+  }
+  cases.push({ name: "8. the bills tail starts at the frontier or 48 hours before the switch, the lower", checks });
+}
+
+// ── 9. The label helpers, rows 5 to 9 ───────────────────────────────────────
+{
+  const checks: Check[] = [];
+  for (const [n, gap, end, year] of [
+    [119, "GAP · 119TH", 118, 2025],
+    [120, "GAP · 120TH", 119, 2027],
+  ] as const) {
+    checks.push({ what: `the polarization axis for scores' Congress ${n}`, want: { gapLabel: gap, lineEndCongress: end, dotYear: year }, got: polarizationAxis(n), old: oldAxis(n) });
+  }
+  for (const [iso, want] of [
+    ["2026-11-27T12:00:00Z", "Productivity vs. the 118th"],
+    ["2027-01-03T00:00:00Z", "Productivity vs. the 119th"],
+  ] as const) {
+    const previous = lawsComparisonPair(at(iso)).previous;
+    checks.push({ what: `/reports' heading at ${iso}`, want, got: productivityHeading(previous), old: oldHeading(previous) });
+  }
+  cases.push({ name: "9. the polarization chart's axis and /reports' heading follow their data's Congress", checks });
 }
 
 // ── Report ──────────────────────────────────────────────────────────────────
