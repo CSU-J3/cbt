@@ -38,7 +38,7 @@ import { getCurrentCongress, ordinal } from "../lib/congress";
 import { getDb } from "../lib/db";
 import {
   houseNextElection,
-  houseTermEnd,
+  houseTermEndForState,
   isPastElectionDay,
   senateNextElection,
   senateTermEnd,
@@ -207,7 +207,8 @@ function pickCurrentParty(history: PartyHistoryEntry[] | undefined): string | nu
 // derivation: the year-pair now comes deterministically from the senator's
 // class (the old startYear+6 / 3-Congress modular walkback drifted on 18 of 100
 // senators — HO 410), consulting the special-election list first. House is
-// unchanged — one Congress = one term.
+// one Congress = one term, except Puerto Rico's resident commissioner, whose
+// four-year term follows the calendar (HO 838; houseTermEndForState).
 function deriveTermYears(
   chamber: "house" | "senate" | null,
   terms: Term[],
@@ -216,6 +217,7 @@ function deriveTermYears(
     senateClass: number | null;
     special: SpecialElection | undefined;
     now: Date;
+    state: string | null;
   },
 ): { endYear: number | null; nextElection: number | null } {
   if (chamber === "senate") {
@@ -243,7 +245,7 @@ function deriveTermYears(
     return { endYear: senateTermEnd(ts), nextElection: senateNextElection(ts) };
   }
   if (chamber === "house" && latestTermStartYear !== undefined) {
-    const endYear = houseTermEnd(latestTermStartYear);
+    const endYear = houseTermEndForState(ctx.state, latestTermStartYear);
     return { endYear, nextElection: houseNextElection(endYear) };
   }
   return { endYear: null, nextElection: null };
@@ -371,13 +373,15 @@ async function main() {
         chamber === "senate"
           ? (senateClasses.get(bioguideId) ?? null)
           : null;
+      const stateName = currentTerm?.stateName ?? member.state ?? null;
+      const state = stateAbbr(stateName) ?? currentTerm?.stateCode ?? null;
       const { endYear: currentTermEndYear, nextElection: nextElectionYear } =
         deriveTermYears(chamber, terms, currentTerm?.startYear, {
           senateClass,
           special: specials.get(bioguideId),
           now,
+          state,
         });
-      const stateName = currentTerm?.stateName ?? member.state ?? null;
       const fallbackName =
         [member.firstName, member.lastName].filter(Boolean).join(" ") ||
         bioguideId;
@@ -421,7 +425,7 @@ async function main() {
           member.firstName ?? null,
           member.lastName ?? null,
           normalizeParty(partyRaw),
-          stateAbbr(stateName) ?? currentTerm?.stateCode ?? null,
+          state,
           stateName,
           currentTerm?.district ?? null,
           chamber,

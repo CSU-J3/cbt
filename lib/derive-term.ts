@@ -124,6 +124,36 @@ export function houseNextElection(termEnd: number): number {
   return termEnd - 1;
 }
 
+// HO 838 (the HO 838 ruling 1): Puerto Rico's resident commissioner serves a
+// four-year term, the one House seat that isn't two years. Its terms begin on
+// Jan 3 of the years where year mod 4 = 1 (2025, 2029, 2033: the January after
+// a presidential election), so the term ends at the first such year after the
+// latest term's start, and the next election is the year before. That holds
+// whatever Congress.gov's entry for the term reads: today H001103's one entry
+// starts in 2025, and if Congress.gov splits the term per Congress, as it does
+// a senator's (HO 411), the 120th's entry starts in 2027. Both give 2029 / 2028,
+// where houseTermEnd gives 2027 and `start + 4` would give 2031 at the 120th.
+// It reads no yaml: legislators-current.yaml records the seat's term as the
+// two-year block every representative gets (2025-01-03 to 2027-01-03, read at
+// HO 838's STEP 0).
+export function residentCommissionerTermEnd(latestStartYear: number): number {
+  let end = latestStartYear + 1;
+  while (end % 4 !== 1) end++;
+  return end;
+}
+
+// The House term end for a member's state: the resident commissioner's rule
+// for PR, houseTermEnd for every state's representatives and the five
+// delegates (whose terms are two years).
+export function houseTermEndForState(
+  state: string | null,
+  latestStartYear: number,
+): number {
+  return state === "PR"
+    ? residentCommissionerTermEnd(latestStartYear)
+    : houseTermEnd(latestStartYear);
+}
+
 // ── HO 411: derive the senator year-pair from Senate class, not term math ──
 //
 // A senator's Senate class fixes their election cycle exactly; the old
