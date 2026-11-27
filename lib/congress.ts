@@ -78,6 +78,17 @@ export function previousCongressTail(
   return { congress: current - 1, session: 2 };
 }
 
+// HO 838 (the HO 838 ruling 4): the ideology strip and the polarization band
+// read only the scores' Congress, the latest one `member_ideology` holds. The
+// table is upserted per member, so when `sync:ideology` writes a new
+// Congress's file, sitting members' rows move to it and a departed member's
+// row stays on the old one. Until then every row is the same Congress's and
+// the condition keeps them all. One condition for both queries, so they keep
+// the agreement the strip's header comment documents; `check:rollover` case 5
+// runs it against an in-memory fixture. `mi` is member_ideology's alias.
+export const SCORES_CONGRESS_SQL =
+  "mi.congress = (SELECT MAX(congress) FROM member_ideology)";
+
 const TERM_MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

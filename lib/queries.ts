@@ -6,6 +6,7 @@ import {
   enactedLawsSource,
   getCurrentCongress,
   lawsComparisonPair,
+  SCORES_CONGRESS_SQL,
   weekOfSession,
 } from "./congress";
 import { getDb } from "./db";
@@ -5694,11 +5695,15 @@ export const getPolarizationBand = unstable_cache(
     const db = getDb();
     // One scan over member_ideology joined to members for party. `scored` /
     // `unscored` (too few votes → NULL dim1) come off the same table without the
-    // NOT-NULL filter, so a separate count query isn't needed.
+    // NOT-NULL filter, so a separate count query isn't needed. HO 838: only the
+    // scores' Congress (SCORES_CONGRESS_SQL, lib/congress.ts), the same
+    // condition the ideology strip takes, so the strip's ticks keep agreeing
+    // with these rails.
     const res = await db.execute(
       `SELECT mi.chamber AS chamber, mi.nominate_dim1 AS dim1, m.party AS party
          FROM member_ideology mi
-         JOIN members m ON m.bioguide_id = mi.bioguide_id`,
+         JOIN members m ON m.bioguide_id = mi.bioguide_id
+        WHERE ${SCORES_CONGRESS_SQL}`,
     );
 
     const houseDem: number[] = [];
@@ -5756,6 +5761,10 @@ export type IdeologyDot = {
 // and until it does `sync:ideology` skips and the stored rows stay put.
 // MAX() rather than the first row, because unlike member_participation this
 // table is upserted per member, so a member who has left keeps an older row.
+// HO 838: the dots are that Congress's only (SCORES_CONGRESS_SQL,
+// lib/congress.ts). A member who served it keeps a dot on its strip, and when
+// the next Congress's scores land, a member who left drops off with the old
+// rows. The band takes the same condition.
 export const getIdeologyStrip = unstable_cache(
   async (): Promise<{ congress: number | null; dots: IdeologyDot[] }> => {
     const db = getDb();
@@ -5765,7 +5774,8 @@ export const getIdeologyStrip = unstable_cache(
               (SELECT MAX(congress) FROM member_ideology) AS congress
          FROM member_ideology mi
          JOIN members m ON m.bioguide_id = mi.bioguide_id
-        WHERE mi.nominate_dim1 IS NOT NULL`,
+        WHERE mi.nominate_dim1 IS NOT NULL
+          AND ${SCORES_CONGRESS_SQL}`,
     );
     const dots = res.rows.map((r) => ({
       bioguideId: r.bioguideId as string,
