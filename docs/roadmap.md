@@ -4042,3 +4042,31 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - The cold-`/` line is struck by Leg B. C7 and C11's line opens, with C11 moot, and so does the `members` line. The slow-spells and late-runs lines gain a clause.
   - Reconcile 287 / 403 / 690 at open, 288 / 404 / 692 at close.
 - **Also notes now run through HO 836.**
+
+**Also (HO 837): the Louisiana hand route, rehearsed by the chat in the Claude desktop app's built-in browser and compared with the store, six MATCH; the route and the Dec 12 runbook filed, and the unsafe HO 577 date-repair script deleted.** Built on `2a93f6c`, on `837-review`.
+
+- **HO 836's FF, taken:** `main` went `9b457fa..2a93f6c` at 3:23:05 PM MST Nov 26, no force, after the tiebreak change and its checks (`/members` 0 of 538 moved). Production record `8097058505`, served by about 3:23:54 PM. `ci.yml` `45904444218`.
+  - `e2e-prod` `45904523776`: 237 of 237, the smoke job 9m4s. `/api/health` 200 over 18 routes.
+  - The crawl's first 8 renders of `/` made 184 store requests in 20 s, the deploy's re-key. The Vercel MCP's response cap dropped 10 render-time slots.
+- **STEP 0 held, claims 1 to 7.**
+  - Claim 6, the map: the jungle boxes live in `primaries` and `primary_candidates` (`house-LA-0N-2026-open`), which keep each candidate's share but no vote count. LA-01 to LA-05 were written by the Nov 4 `?state=LA` call, and LA-06's two winners by the scheduled primaries tick of Nov 22. All six are settled now.
+  - The Dec 12 boxes live in `general_ballot` and `general_ballot_reads`: Ballotpedia labels them generals, so `general_runoff` stays empty. The general-ballot cron reads each seat about once a day.
+  - Claim 7: only SKILL and the backlog named the script.
+- **§ 1** (`docs/probes/837-la-hand-route.md`): six MATCH: 213 fields compared across sources, and 16 checks of one source. Each jungle candidate's votes over the box's total reproduce the stored share (38 of 39 to the last digit, the other within 7e-15), so no box changed after the store read it. The race pages print no percents, and none of the six seats is on `/electoral`.
+  - LA-03's lead sentence: neither the store nor the page reads it (the incumbent flag is the row's underline), so no oddity.
+- **§ 2 and § 3:** `scripts/diagnostic/la-boxes-837.js` as delivered; no `tsc` include and no lint config picks it up. `scripts/repair-house-primary-dates-577.ts` deleted.
+- **The legs:** A, the guard passed every statement and refused none. B, the comparator's four controls fire: two planted differences read DIFFERS, a swallowed candidate is refused, and a planted roster row reads DIFFERS. C, the diff names only the two scripts, `docs/` and SKILL.
+- **Flagged in the paste:**
+  - the store keeps no vote count and the race pages print no percents, so § 1 compared the votes through the share and Production's percents not at all;
+  - the runbook's percents for a Dec 12 box have nothing to compare against: the store keeps no share for a general box, and the race page prints none. They're recorded;
+  - the store reads each Louisiana seat about once a day, so the Dec 13 comparison waits for a store read that follows the marks, or for a call the chat authorizes;
+  - the readings came as a table, without the snippet's JSON;
+  - the handoff's *marks posted at 1:24 AM* is when CBT first read LA-05's Dec 12 box; the runbook says that instead;
+  - on LA-01 to LA-04 the jungle's other candidates still read *On ballot* after the seat was decided outright;
+  - SKILL's HO 577 paragraph names the deleted script's path, so it gains the past-tense clause, a forced consequence of the deletion, its backlog pointer carrying the SHA (a change to the handoff's wording);
+  - a read-only review of the three commits found 1 should-fix (bare backlog line numbers in the probe) and 13 minor (12 distinct issues in all); each was fixed, or named here, before the FF.
+- **The docs:**
+  - The hand-route line (*The six Louisiana boxes could not be compared with Ballotpedia by hand on Nov 4*, HO 798) is struck by Leg B, and the HO 577 script line (*`scripts/repair-house-primary-dates-577.ts` is unsafe to re-run*, HO 761) by § 3. The Dec 12 read opens, dated Sunday 2026-12-13, and the C7 and C11 line gains C7's date, Thursday 2026-12-03.
+  - SKILL's Ballotpedia bullet names the hand route.
+  - Reconcile 288 / 404 / 692 at open, 287 / 406 / 693 at close.
+- **Also notes now run through HO 837.**
