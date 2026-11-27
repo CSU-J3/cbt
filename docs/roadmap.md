@@ -4070,3 +4070,42 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - SKILL's Ballotpedia bullet names the hand route.
   - Reconcile 288 / 404 / 692 at open, 287 / 406 / 693 at close.
 - **Also notes now run through HO 837.**
+
+**Also (HO 838): the 120th-Congress rollover's pre-built parts. HO 838 halted at STEP 0 on the resident commissioner's yaml term and resumed on the chat's six rulings. The laws chart follows `getCurrentCongress`, the vote syncs fetch 119/2 for seven days after the switch, the ideology strip and the polarization band read the scores' Congress, Puerto Rico's resident commissioner gets the calendar's four-year term, and the hub's election cell reads the cycle year. `check:rollover` proves each by setting the clock.** Built on `0aec365`, on `838-review`.
+
+- **HO 837's FF, taken:** `main` went `2a93f6c..0aec365` at 8:05:07 PM MST Nov 26, no force, pushed by Corey after auto mode's check blocked Code's push. Production record `8100734400`, served from about 8:05:59 to 8:06:09 PM. `ci.yml` `45932083472`; `e2e-prod` `45932168921`, 237 of 237, the smoke job 9m8s. `/api/health` 200 over 18 routes. Six Louisiana seats MATCH.
+- **STEP 0 halted at claim 7** (11:33 AM MST Nov 27). `legislators-current.yaml` gives H001103 `rep 2025-01-03..2027-01-03`, the two-year block every representative gets, so § 1.D's *yaml end, else start + 4* moved nothing. The other claims held or were recorded:
+  - 152 enacted laws in `bills` (119 only) and 274 in `historical_laws` (118);
+  - `runVotesSync` already takes a congress and sessions;
+  - 2 of the last 10 vote ticks hit the 60 s ceiling;
+  - 16 departed members in `member_ideology`;
+  - the five delegates' yaml terms are two years.
+- **The chat's halt ruling (1:40 PM): the halt was right.** Six rulings, and claims 1 to 3 re-run before building (`main` still `0aec365`, 287 / 406 / 693):
+  1. The resident commissioner's term follows the calendar (starts in years ≡ 1 mod 4), with no yaml and no `start + 4`.
+  2. A new § 1.F: the hub reads the cycle year, and *Former member* only for a member who isn't current. STEP 0 found the Jan 1 gap hitting 474 sitting members, not one.
+  3. § 4 narrowed: no `sync:members` run, which would move 35 senators. Instead one guarded `UPDATE` of H001103 after the FF (bound: 1 row), on Corey's word, which came with the ruling.
+  4. The strip and the band filter by the scores' Congress, not `is_current`.
+  5. The vote tail runs first. 6. Line 123's close.
+- **§ 1 as built, six code commits:**
+  - The laws reader returns the pair it compared, each series from its own table, the current Congress in its cache key. *No laws yet* until the 120th's first.
+  - `previousCongressTail` feeds `/api/sync-votes` a `tail` leg, run before the current pass.
+  - `SCORES_CONGRESS_SQL` is in both ideology queries; today the same rows in the same order.
+  - `residentCommissionerTermEnd` / `houseTermEndForState` in the members sync.
+  - `cycleYear` and `electionCellFor`. `getMemberWithStatus` carries `is_current`, so `Member`'s shape and the client payloads stay as they were.
+  - `check:rollover`, five cases in CI. Each also runs against the code it replaced, which must fail there.
+- **§ 2:** `docs/probes/838-rollover-c4-scopes.md`, 14 rows, every scope a proposal. The sweep found two sites off the line: `RaceOpenRow`'s *Missed · 119th*, and `/reports`' heading *Productivity vs. the 118th*, which C1 makes false on Jan 3 and which sits outside Leg D (row 9).
+- **The legs:**
+  - A: green, with every control firing.
+  - B: every store statement passed as a read.
+  - C: two cold builds against prod's store, equal on `/reports`, `/members`, `/members?chamber=house` and the hubs of H001103, Aderholt, Booker and Boebert. One floor rule (the render clock).
+  - D: the files the handoff lists, plus the hub page (ruling 2).
+- **Ruling 5's reading** (`838-artifacts/votes-ticks-838.md`): a quiet tick splits about evenly between the House, the Senate and the participation rebuild (6.5 s). Nov 21's timeout spent 28 s in the Senate heal's SELECT after 8 new rolls. The tail adds about 2.4 s.
+- **Flagged in the paste:**
+  - `/reports`' heading, and `getMemberIdeology`'s party medians, which stay unfiltered and part from the band once HS120 lands;
+  - the line-71 tail gap in three more syncs (nominations, LDA, the bills sync's late 119th laws); the twelve labels are fourteen rows; commit 3's subject follows ruling 4.
+- **The docs:**
+  - The vote-tail line (HO 746) struck, and the checklist's C1 and `member_ideology` items struck in place.
+  - The day-of list gains the 119/2 read, and C4 points at the table.
+  - Line 123 annotated, staying open until the write reads 2028 on prod. One line opened: the 60 s ceiling.
+  - Reconcile 287 / 406 / 693 at open, 287 / 407 / 694 at close.
+- **Also notes now run through HO 838.**
