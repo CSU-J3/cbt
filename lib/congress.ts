@@ -60,6 +60,24 @@ export function weekOfSession(day: string, congress: number): number | null {
   return Math.max(0, Math.floor((t - start) / WEEK_MS));
 }
 
+// HO 838 (backlog line 71): for seven days after a switch, the vote syncs also
+// fetch the previous Congress's second session. A roll recorded after the last
+// daily tick before Jan 3, or posted late by the Clerk or the Senate, is
+// otherwise never fetched, since the syncs read only getCurrentCongress()'s
+// sessions. The window is [switch, switch + 7 days): at 2027-01-03T00:00:00Z
+// the 120th begins and the tail is { congress: 119, session: 2 }; at
+// 2027-01-10T00:00:00Z the instant seven days back is the 120th's too, so the
+// tail is null. Null outside the window.
+const TAIL_MS = 7 * 86_400_000;
+
+export function previousCongressTail(
+  now: Date = new Date(),
+): { congress: number; session: 2 } | null {
+  const current = getCurrentCongress(now);
+  if (getCurrentCongress(new Date(now.getTime() - TAIL_MS)) === current) return null;
+  return { congress: current - 1, session: 2 };
+}
+
 const TERM_MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

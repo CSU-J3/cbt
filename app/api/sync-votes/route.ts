@@ -15,6 +15,7 @@
 // 500 JSON (was `throw err` for Next default 500).
 import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
+import { previousCongressTail } from "@/lib/congress";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { refreshMemberParticipation } from "@/lib/participation-refresh";
 import { runSenateVotesSync } from "@/lib/senate-votes-sync";
@@ -43,6 +44,36 @@ async function handle(request: Request) {
   if (denied) return denied;
 
   const result = await wrapCronRoute("/api/sync-votes", async () => {
+    // HO 838 (backlog line 71): for seven days after a switch, each chamber
+    // also syncs the previous Congress's second session, so a roll recorded
+    // after the last tick before Jan 3 is still fetched. The tails run FIRST
+    // (the HO 838 ruling): two of ten ticks read at HO 838 hit the 60 s
+    // ceiling, the current Congress's first week holds a handful of rolls, and
+    // what the budget cuts off this tick the next tick's stored-set skip picks
+    // up. Outside the window the route runs as before, and its result carries
+    // no `tail` leg.
+    const tailSpec = previousCongressTail();
+    let houseTail: Awaited<ReturnType<typeof runVotesSync>> | null = null;
+    let senateTail: Awaited<ReturnType<typeof runSenateVotesSync>> | null = null;
+    if (tailSpec) {
+      try {
+        houseTail = await runVotesSync({
+          congress: tailSpec.congress,
+          sessions: [tailSpec.session],
+        });
+      } catch (err) {
+        console.error("[sync-votes] house tail failed:", err);
+      }
+      try {
+        senateTail = await runSenateVotesSync({
+          congress: tailSpec.congress,
+          sessions: [tailSpec.session],
+        });
+      } catch (err) {
+        console.error("[sync-votes] senate tail failed:", err);
+      }
+    }
+
     let house: Awaited<ReturnType<typeof runVotesSync>> | null = null;
     try {
       house = await runVotesSync();
@@ -72,9 +103,18 @@ async function handle(request: Request) {
     // Flush all vote-tagged query caches (getRecentVotes, getMemberVotes,
     // getMemberVoteStats, etc.) so the member hub picks up new positions
     // without waiting on the 1h backstop revalidate.
-    if (house || senate) expireTag("votes");
+    if (house || senate || houseTail || senateTail) expireTag("votes");
 
-    return { payload: { house, senate, participation } };
+    return {
+      payload: {
+        house,
+        senate,
+        ...(tailSpec
+          ? { tail: { ...tailSpec, house: houseTail, senate: senateTail } }
+          : {}),
+        participation,
+      },
+    };
   });
 
   return NextResponse.json(result.body, { status: result.httpStatus });
