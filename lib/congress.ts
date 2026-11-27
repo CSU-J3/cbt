@@ -1,10 +1,47 @@
-export function getCurrentCongress(date: Date = new Date()): number {
+import { daysToElection } from "./format";
+
+// HO 838 (the HO 838 ruling 2): the cycle year, the calendar year less one
+// before 00:00Z Jan 3. A Congress's second year runs to Jan 3, not to Dec 31,
+// so Jan 1 and 2 still belong to the year just voted on. getCurrentCongress
+// takes the same boundary from here.
+export function cycleYear(date: Date = new Date()): number {
   const year = date.getUTCFullYear();
-  const startOfYear = new Date(Date.UTC(year, 0, 3));
-  const effectiveYear = date < startOfYear ? year - 1 : year;
+  return date < new Date(Date.UTC(year, 0, 3)) ? year - 1 : year;
+}
+
+export function getCurrentCongress(date: Date = new Date()): number {
+  const effectiveYear = cycleYear(date);
   const congressStartYear =
     effectiveYear % 2 === 1 ? effectiveYear : effectiveYear - 1;
   return Math.floor((congressStartYear - 2025) / 2) + 119;
+}
+
+// HO 838 (the HO 838 ruling 2): which election cell the member hub draws for
+// a stored next-election year, read against the cycle year, not the calendar
+// year.
+//   "result": HO 807's branch, the seat's race for that year in the race
+//     page's words. It's the cycle year past its election day, as before, and
+//     now also a SITTING member's year behind the cycle year: the window from
+//     00:00Z Jan 3 until the day-of sync rewrites the row. A member with no
+//     race row gets HO 807's no-cell outcome there, as the delegates do.
+//   "next": a year at or after the cycle year, before its election day.
+//   "former": a year behind the cycle year, for a member who isn't current.
+// Before HO 838 the hub compared the calendar year, so from 00:00Z Jan 1 every
+// sitting member with a stored 2026 read *Former member* (474 at HO 838's
+// STEP 0) until the rollover sync and its cache cleared.
+export type ElectionCell = "result" | "next" | "former";
+
+export function electionCellFor(
+  nextElectionYear: number,
+  isCurrent: boolean,
+  nowMs: number,
+): ElectionCell {
+  const cycle = cycleYear(new Date(nowMs));
+  if (nextElectionYear === cycle && daysToElection(nextElectionYear, nowMs) < 0) {
+    return "result";
+  }
+  if (nextElectionYear >= cycle) return "next";
+  return isCurrent ? "result" : "former";
 }
 
 export function ordinal(n: number): string {

@@ -1393,6 +1393,33 @@ export const getMember = unstable_cache(
   { revalidate: 86400, tags: ["members"] },
 );
 
+// HO 838 (the HO 838 ruling 2): the member hub's read, getMember's row plus
+// `is_current`. The hub's election cell needs it, since a past election year
+// reads *Former member* only for a member who isn't current. It's kept apart
+// from getMember so the Member object the hub and the race page hand their
+// client components (MemberHeader, RaceIncumbentCard) keeps its shape and
+// their payloads don't change.
+export const getMemberWithStatus = unstable_cache(
+  async (
+    bioguideId: string,
+  ): Promise<{ member: Member; isCurrent: boolean } | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT bioguide_id, name, first_name, last_name, party, state, state_name,
+              district, chamber, birth_year, depiction_url,
+              current_term_end_year, next_election_year, is_current
+            FROM members WHERE bioguide_id = ? LIMIT 1`,
+      args: [bioguideId],
+    });
+    const r = rs.rows[0];
+    return r
+      ? { member: rowToMember(r), isCurrent: Number(r.is_current) === 1 }
+      : null;
+  },
+  ["getMemberWithStatus"],
+  { revalidate: 86400, tags: ["members"] },
+);
+
 // Excludes ceremonial bills from the enacted rate so the number reflects
 // substantive work (a renaming counts toward "bills sponsored" elsewhere,
 // but enacted-rate is a quality signal, not a volume signal).

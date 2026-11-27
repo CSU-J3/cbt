@@ -14,11 +14,15 @@ import { SourcesLine } from "@/components/SourcesLine";
 import { StageLegend } from "@/components/StageLegend";
 import { TradeRow } from "@/components/TradeRow";
 import { clockNowMs } from "@/lib/clock";
-import { currentCongressLabel, getCurrentCongress, ordinal } from "@/lib/congress";
-import { daysToElection, daysUntil, formatDateShort } from "@/lib/format";
+import {
+  currentCongressLabel,
+  electionCellFor,
+  getCurrentCongress,
+  ordinal,
+} from "@/lib/congress";
+import { daysUntil, formatDateShort } from "@/lib/format";
 import { incumbentTagAt } from "@/lib/incumbent-tag";
 import {
-  getMember,
   getMemberAffiliations,
   getMemberAmendments,
   getMemberBills,
@@ -32,6 +36,7 @@ import {
   getMemberTrades,
   getMemberVotes,
   getMemberVoteStats,
+  getMemberWithStatus,
   getChamberParticipationContext,
   type MemberCommitteeRow,
   getPalestinePools,
@@ -166,7 +171,7 @@ export default async function MemberPage({
   const nowMs = clockNowMs();
 
   const [
-    member,
+    memberRow,
     stats,
     bills,
     affiliations,
@@ -185,7 +190,9 @@ export default async function MemberPage({
     sponsoredAmendments,
     palestinePools,
   ] = await Promise.all([
-    getMember(bioguideId),
+    // HO 838: getMember's row plus is_current, for the election cell; the
+    // Member object itself is unchanged.
+    getMemberWithStatus(bioguideId),
     getMemberStats(bioguideId),
     getMemberBills(bioguideId, BILL_LIMIT),
     getMemberAffiliations(bioguideId),
@@ -216,6 +223,7 @@ export default async function MemberPage({
     // HO 767: the Palestine Tracker's pool per chamber, for "#N of {pool}".
     getPalestinePools(),
   ]);
+  const member = memberRow?.member ?? null;
   const palestinePool = member
     ? member.chamber === "senate"
       ? palestinePools.senate
@@ -238,12 +246,16 @@ export default async function MemberPage({
 
   // HO 807: past this year's election day the election cell reads the seat's
   // race in the race page's words. Its three reads run only on that branch.
-  const currentYear = new Date(nowMs).getUTCFullYear();
+  // HO 838 (the HO 838 ruling 2): the year is the cycle year, not the calendar
+  // year, so Jan 1 and 2 read as December does; a sitting member's year behind
+  // the cycle year takes the same branch; and only a member who isn't current
+  // reads *Former member* (electionCellFor, lib/congress.ts).
   const electionYear = member?.nextElectionYear ?? null;
-  const afterElectionDay =
-    electionYear !== null &&
-    electionYear === currentYear &&
-    daysToElection(electionYear, nowMs) < 0;
+  const electionCell =
+    electionYear !== null
+      ? electionCellFor(electionYear, memberRow?.isCurrent === true, nowMs)
+      : null;
+  const afterElectionDay = electionYear !== null && electionCell === "result";
   const [seatRace, seatReading, seatQualifiers] =
     afterElectionDay && raceId
       ? await Promise.all([
@@ -423,8 +435,10 @@ export default async function MemberPage({
               // cell rendered a stale "Next election 2024" here — a real bug),
               // and the primary sub-line stays on the future branch only.
               // HO 807: the year is compared on lib/clock.ts's now, in UTC, and
-              // this year past its election day takes the branch above.
-              const isFutureElection = member.nextElectionYear >= currentYear;
+              // this year past its election day takes the branch above. HO 838:
+              // against the cycle year, and a past year lands here only for a
+              // member who isn't current (electionCellFor).
+              const isFutureElection = electionCell === "next";
               const electionValue = (
                 <>
                   {member.nextElectionYear}
