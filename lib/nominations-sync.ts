@@ -22,9 +22,9 @@
 // DEFERRED (columns exist, NULL in v1): committee_system_code + nominee_count are
 // detail-only and land with a later detail-hydration HO (which also resolves the
 // part-specific-detail fetch + the civilian committee-referral re-measure).
-import { getCurrentCongress } from "./congress";
+import { congressTermDates, getCurrentCongress, previousCongressTail } from "./congress";
 import { getDb } from "./db";
-import { fetchError } from "./redact";
+import { fetchError, redactSecrets } from "./redact";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
@@ -200,6 +200,20 @@ export interface NominationsSyncResult {
   dispositionResidual: number;
   frontier: string;
   apiTotal: number;
+  // HO 839: the previous Congress's tail, present only in its 7-day window.
+  tail?: NominationsTailResult;
+}
+
+// HO 839: one run's tail of the previous Congress.
+export interface NominationsTailResult {
+  congress: number;
+  frontier: string;
+  upserted: number;
+  listPages: number;
+  deadlineHit: boolean;
+  apiTotal: number;
+  // A list page that threw, redacted. The tail's failure doesn't fail the run.
+  error: string | null;
 }
 
 export interface SyncNominationsOptions {
@@ -209,8 +223,13 @@ export interface SyncNominationsOptions {
   progressEveryPages?: number;
 }
 
-async function currentFrontier(db: Db, floor: string): Promise<string> {
-  const rs = await dbRetry("frontier", () => db.execute("SELECT MAX(update_date) AS mx FROM nominations"));
+// HO 839: the frontier is per congress. One MAX(update_date) over the whole table would move with every
+// row the previous Congress's tail writes and skip the current Congress's updates behind it (838-ff-go.md
+// ruling 5). Today every row is the 119th's, so it reads the value the whole-table form read.
+async function currentFrontier(db: Db, floor: string, congress: number): Promise<string> {
+  const rs = await dbRetry("frontier", () =>
+    db.execute({ sql: "SELECT MAX(update_date) AS mx FROM nominations WHERE congress = ?", args: [congress] }),
+  );
   return (rs.rows[0]?.mx as string | null) ?? floor;
 }
 
@@ -219,17 +238,14 @@ export async function syncNominations(opts: SyncNominationsOptions = {}): Promis
   const db = getDb();
   const apiKey = process.env.CONGRESS_API_KEY;
   if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
-  const congress = getCurrentCongress();
+  const now = new Date();
+  const congress = getCurrentCongress(now);
   const floor = `${2025 + (congress - 119) * 2}-01-03T00:00:00Z`;
-  const frontier = await currentFrontier(db, floor);
+  const frontier = await currentFrontier(db, floor, congress);
   const ingestedAt = new Date().toISOString();
 
-  let upserted = 0;
-  let listPages = 0;
   let throttled429 = 0;
-  let deadlineHit = false;
   let dispositionResidual = 0;
-  let apiTotal = -1;
   const residualSamples: string[] = [];
 
   const pending: Stmt[] = [];
@@ -239,63 +255,92 @@ export async function syncNominations(opts: SyncNominationsOptions = {}): Promis
     await dbRetry("flush", () => db.batch(chunk, "write"));
   };
 
-  console.log(`[nominations] mode=${backfill ? "backfill" : "incremental"} frontier=${frontier}`);
-
-  let offset = 0;
-  for (;;) {
-    if (deadlineMs && Date.now() >= deadlineMs) {
-      deadlineHit = true;
-      break;
-    }
-    let page: ListResponse;
-    try {
-      page = await fetchJson<ListResponse>(listUrl(congress, frontier, offset, apiKey));
-    } catch (e) {
-      if ((e as Error).message.includes("429")) throttled429++;
-      await flush();
-      throw e;
-    }
-    listPages++;
-    if (apiTotal < 0) apiTotal = page.pagination?.count ?? 0;
-    const items = page.nominations ?? [];
-    if (!items.length) break;
-
-    for (const it of items) {
-      const actionText = it.latestAction?.text ?? null;
-      const disp = computeNominationDisposition(actionText);
-      if (isDispositionResidual(disp, actionText)) {
-        dispositionResidual++;
-        if (residualSamples.length < 5 && actionText) residualSamples.push(actionText.slice(0, 120));
+  // One listing of /nomination/{listCongress} from its frontier to the end of the list or the deadline, counting
+  // into `acc`, which its caller holds, so the counts survive a throw. A list page that throws flushes what it
+  // has and rethrows.
+  type WalkCounts = { upserted: number; listPages: number; deadlineHit: boolean; apiTotal: number };
+  const walk = async (listCongress: number, from: string, acc: WalkCounts): Promise<void> => {
+    let offset = 0;
+    for (;;) {
+      if (deadlineMs && Date.now() >= deadlineMs) {
+        acc.deadlineHit = true;
+        break;
       }
-      pending.push(buildNominationStatement(it, congress, ingestedAt));
-      upserted++;
-      if (pending.length >= FLUSH_AT) await flush();
-    }
-    await flush(); // durable at page boundary
+      let page: ListResponse;
+      try {
+        page = await fetchJson<ListResponse>(listUrl(listCongress, from, offset, apiKey));
+      } catch (e) {
+        if ((e as Error).message.includes("429")) throttled429++;
+        await flush();
+        throw e;
+      }
+      acc.listPages++;
+      if (acc.apiTotal < 0) acc.apiTotal = page.pagination?.count ?? 0;
+      const items = page.nominations ?? [];
+      if (!items.length) break;
 
-    if (listPages % progressEveryPages === 0) {
-      console.log(`[nominations]   page ${listPages} (offset ${offset}): +${upserted} upserted (api total=${apiTotal})`);
+      for (const it of items) {
+        const actionText = it.latestAction?.text ?? null;
+        const disp = computeNominationDisposition(actionText);
+        if (isDispositionResidual(disp, actionText)) {
+          dispositionResidual++;
+          if (residualSamples.length < 5 && actionText) residualSamples.push(actionText.slice(0, 120));
+        }
+        pending.push(buildNominationStatement(it, listCongress, ingestedAt));
+        acc.upserted++;
+        if (pending.length >= FLUSH_AT) await flush();
+      }
+      await flush(); // durable at page boundary
+
+      if (acc.listPages % progressEveryPages === 0) {
+        console.log(`[nominations]   page ${acc.listPages} (offset ${offset}): +${acc.upserted} upserted (api total=${acc.apiTotal})`);
+      }
+      offset += items.length;
+      if (items.length < PAGE_SIZE) break; // last page
+      await sleep(pageDelayMs);
     }
-    offset += items.length;
-    if (items.length < PAGE_SIZE) break; // last page
-    await sleep(pageDelayMs);
+    await flush();
+  };
+
+  console.log(`[nominations] mode=${backfill ? "backfill" : "incremental"} frontier=${frontier}`);
+  const cur: WalkCounts = { upserted: 0, listPages: 0, deadlineHit: false, apiTotal: -1 };
+  await walk(congress, frontier, cur);
+
+  // HO 839 (838-ff-go.md ruling 5): for 7 days after a switch, the previous Congress too, after the current
+  // listing and inside the same deadline, from its own frontier. A nomination returned at sine die, or
+  // confirmed on the last day, lands in the API after Jan 3.
+  let tail: NominationsTailResult | undefined;
+  const t = previousCongressTail(now, 7);
+  if (t) {
+    // The frontier read is inside the try too, so nothing the tail does can fail the run.
+    const acc: WalkCounts = { upserted: 0, listPages: 0, deadlineHit: false, apiTotal: -1 };
+    let tailFrontier = "";
+    try {
+      const tailFloor = congressTermDates(t.congress).start.toISOString().replace(/\.\d+Z$/, "Z");
+      tailFrontier = await currentFrontier(db, tailFloor, t.congress);
+      console.log(`[nominations] tail congress=${t.congress} frontier=${tailFrontier}`);
+      await walk(t.congress, tailFrontier, acc);
+      tail = { congress: t.congress, frontier: tailFrontier, ...acc, error: null };
+    } catch (e) {
+      tail = { congress: t.congress, frontier: tailFrontier, ...acc, error: redactSecrets((e as Error).message) };
+    }
   }
-  await flush();
 
   if (dispositionResidual > 0) {
     console.warn(`[nominations] disposition residual: ${dispositionResidual} rows fell to "received" on non-lead text — sample:`);
-    for (const s of residualSamples) console.warn(`    ${s}`);
+    for (const r of residualSamples) console.warn(`    ${r}`);
   }
 
   return {
     mode: backfill ? "backfill" : "incremental",
-    upserted,
-    listPages,
+    upserted: cur.upserted,
+    listPages: cur.listPages,
     throttled429,
-    deadlineHit,
+    deadlineHit: cur.deadlineHit,
     dispositionResidual,
     frontier,
-    apiTotal,
+    apiTotal: cur.apiTotal,
+    ...(tail ? { tail } : {}),
   };
 }
 

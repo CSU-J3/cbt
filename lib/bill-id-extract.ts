@@ -52,10 +52,11 @@ function plausibleSenateBill(prefix: string, leftContext: string): boolean {
   return /\b(bill|senate|legislation|act|amendment|measure)\b/.test(tail);
 }
 
-export function extractBillIds(text: string): string[] {
+// HO 839: the congress the ids are stamped with is the caller's when it has one. The lobbying sync's tail
+// reads the previous filing year after the switch, whose bills are the previous Congress's.
+export function extractBillIds(text: string, congress: number = getCurrentCongress()): string[] {
   if (!text) return [];
   const ids = new Set<string>();
-  const congress = getCurrentCongress();
   for (const m of text.matchAll(BILL_ID_REGEX)) {
     const rawPrefix = m[1];
     const rawNumber = m[2];

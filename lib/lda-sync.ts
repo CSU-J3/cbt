@@ -26,7 +26,7 @@
 // (idempotent, never additive). The full ~108k-filing job at ~1.7s/page is
 // inherently ~2h; if it stalls, the next run picks up from the DB frontier.
 import { extractBillIds } from "./bill-id-extract";
-import { getCurrentCongress } from "./congress";
+import { getCurrentCongress, lobbyingFilingYears } from "./congress";
 import { getDb } from "./db";
 import { fetchError } from "./redact";
 
@@ -88,6 +88,18 @@ export interface LdaSyncResult {
    * anti-join on every tick.
    */
   namesUnreachable: number;
+  // HO 839: the previous filing year's run, present only until Feb 15 of the current Congress's first year.
+  tail?: LdaTailResult;
+}
+
+// HO 839: one run's tail, the previous filing year, its bills the previous Congress's.
+export interface LdaTailResult {
+  year: number;
+  congress: number;
+  filingsUpserted: number;
+  activitiesUpserted: number;
+  billLinksUpserted: number;
+  combos: string[];
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -274,6 +286,7 @@ function buildFilingStatements(
   f: LdaFiling,
   validBillIds: Set<string>,
   ingestedAt: string,
+  billCongress: number,
 ): { stmts: Stmt[]; activities: number; billLinks: number } {
   const stmts: Stmt[] = [];
   // HO 597: activity_count is the MATERIALIZED /lobbying VOLUME sort key. It must
@@ -361,7 +374,7 @@ function buildFilingStatements(
   let activities = 0;
   let billLinks = 0;
   for (const [i, a] of acts.entries()) {
-    const ids = extractBillIds(a.description ?? "");
+    const ids = extractBillIds(a.description ?? "", billCongress);
     stmts.push({
       sql: `INSERT INTO lda_activities
         (filing_uuid, activity_ordinal, general_issue_code, general_issue_code_display, description, bill_ids)
@@ -424,13 +437,22 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
   // Cooldowns only in an uncapped (backfill) run — see SyncLdaOptions.
   const cooldownsOn = !deadlineMs && cooldownMs > 0 && cooldownEveryFilings > 0;
   const db = getDb();
-  const congress = getCurrentCongress();
-  // 119th → [2025, 2026]. Derives from congress so it advances with the cycle.
-  const firstYear = 2025 + (congress - 119) * 2;
-  const years = [firstYear, firstYear + 1];
+  const now = new Date();
+  const congress = getCurrentCongress(now);
+  // 119th → [2025, 2026]. Derives from congress so it advances with the cycle. HO 839 (838-ff-go.md
+  // ruling 5): until Feb 15 of the current Congress's first year, inclusive, the year before leads the
+  // list (lobbyingFilingYears), since its Q4 LD-2s are due Jan 20. Each (year, type) keeps its own floor,
+  // so the tail's progress never touches the current years'.
+  const { years, tailYear } = lobbyingFilingYears(now);
 
   const validBillIds = await loadValidBillIds(db, congress);
+  // HO 839: the tail year's filings name the previous Congress's bills, stamped and checked against those.
+  const tailValidBillIds = tailYear === null ? null : await loadValidBillIds(db, congress - 1);
   const ingestedAt = new Date().toISOString();
+  const tail: LdaTailResult | undefined =
+    tailYear === null
+      ? undefined
+      : { year: tailYear, congress: congress - 1, filingsUpserted: 0, activitiesUpserted: 0, billLinksUpserted: 0, combos: [] };
 
   // HO 598 — uuids written by THIS run, for the bounded completeness check.
 
@@ -519,12 +541,14 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
         pagesFetched++;
         pagesInCombo++;
         if (apiTotal < 0) apiTotal = page.count;
+        const isTail = tail !== undefined && year === tail.year;
         for (const f of page.results) {
           if (ms(f.dt_posted) <= skipMs) continue; // already ingested (dedup)
           const { stmts, activities, billLinks } = buildFilingStatements(
             f,
-            validBillIds,
+            isTail && tailValidBillIds ? tailValidBillIds : validBillIds,
             ingestedAt,
+            isTail ? congress - 1 : congress,
           );
           pending.push(...stmts);
           ingestedUuids.push(f.filing_uuid);
@@ -532,6 +556,11 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
           comboFilings++;
           activitiesUpserted += activities;
           billLinksUpserted += billLinks;
+          if (isTail && tail) {
+            tail.filingsUpserted++;
+            tail.activitiesUpserted += activities;
+            tail.billLinksUpserted += billLinks;
+          }
         }
         if (pending.length >= FLUSH_AT) await flush();
         if (pagesInCombo % progressEveryPages === 0) {
@@ -564,6 +593,7 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
             : `complete (db ${dbCount} >= api ${apiTotal})`;
       const line = `${year} ${type}: ${state}; from=${afterDate ?? "start"}; +${comboFilings} ingested`;
       combos.push(line);
+      if (tail && year === tail.year) tail.combos.push(line);
       console.log(`[lda] ${line}`);
     }
   }
@@ -607,5 +637,6 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
     deadlineHit,
     combos,
     namesUnreachable,
+    ...(tail ? { tail } : {}),
   };
 }

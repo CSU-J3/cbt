@@ -19,8 +19,16 @@
 //
 // /api/sync and `npm run sync` call runSync with the `live` queue. A pass run from the box enqueues with
 // `source = 'backfill'` and drains that queue alone, so the cron's drain never reads it.
+//
+// HO 839 (838-ff-go.md ruling 5): for 21 days after a switch, the tick also lists the previous Congress,
+// /bill/{current − 1}, after the current listing, so a 119th bill signed into law in mid-January (the
+// President has ten days, Sundays excepted, from presentment) is fetched. Its progress is its own
+// sync_state row (`bills_tail_frontier`: the tail's congress and frontier, as JSON), started from the
+// frontier at the switch or 48 hours before it if that's lower (billsTailStart). It never moves
+// `bills_frontier` or `bills_wide_at`, its entries go through the same drain, and it's bounded by the
+// tick's deadline like the wide listing: what's left waits for the next tick.
 import { classifyCluster } from "./cluster-patterns";
-import { getCurrentCongress } from "./congress";
+import { billsTailStart, congressTermDates, getCurrentCongress, ordinal, previousCongressTail } from "./congress";
 import { getDb } from "./db";
 import { computeStageWithLaws, stageRank } from "./enums";
 import { fetchError, redactSecrets } from "./redact";
@@ -45,6 +53,9 @@ const MAX_ATTEMPTS = 3;
 const DROPPED_CAP = 50;
 const FRONTIER_KEY = "bills_frontier";
 const WIDE_KEY = "bills_wide_at";
+// HO 839: the previous Congress's tail, its window and its own progress row.
+const TAIL_KEY = "bills_tail_frontier";
+const TAIL_DAYS = 21;
 // HO 116: hard wall-clock cap per detail fetch. Cheap insurance — observed
 // p95 was 127ms locally — but mirrors the HO 115 summarize pattern so a
 // future hung Congress.gov call can't burn the cron tick.
@@ -135,6 +146,8 @@ export type SyncStats = {
   // HO 790: the daily wide listing ran this tick, and reached the end of the list (which writes bills_wide_at).
   wide: boolean;
   wideComplete: boolean;
+  // HO 839: the previous Congress's tail, present only in its 21-day window.
+  tail?: BillsTailStats;
   // HO 790: writes that nulled a summary, on a new latest action or a new text version (Corey's ruling on backlog
   // :17), and of them those with a new action and those with a new text version (a write with both counts in each).
   resets: number;
@@ -146,6 +159,20 @@ export type SyncStats = {
   crsMoved: number;
   crsOnly: number;
   titleMoved: number;
+};
+
+// HO 839: one tick's tail of the previous Congress.
+export type BillsTailStats = {
+  congress: number;
+  // Where this tick's tail listing started, and the tail frontier it left.
+  from: string;
+  frontierAfter: string;
+  // This tick wrote the tail's first frontier (billsTailStart).
+  initialized: boolean;
+  complete: boolean;
+  pages: number;
+  enqueued: number;
+  error: string | null;
 };
 
 function billId(congress: number, type: string, number: number | string): string {
@@ -178,7 +205,8 @@ async function fetchJson<T>(
   return (await res.json()) as T;
 }
 
-function listUrl(fromDateTime: string, offset: number, apiKey: string): string {
+// HO 839: the congress is the caller's, not read here: the tail lists the previous one.
+function listUrl(congress: number, fromDateTime: string, offset: number, apiKey: string): string {
   const params = new URLSearchParams({
     fromDateTime,
     sort: "updateDate asc",
@@ -187,7 +215,7 @@ function listUrl(fromDateTime: string, offset: number, apiKey: string): string {
     format: "json",
     api_key: apiKey,
   });
-  return `${API_BASE}/bill/${getCurrentCongress()}?${params.toString()}`;
+  return `${API_BASE}/bill/${congress}?${params.toString()}`;
 }
 
 function detailUrl(congress: number, type: string, number: string | number, apiKey: string): string {
@@ -514,12 +542,13 @@ export type RunSyncOptions = {
 };
 
 // HO 790: one listing from `from` to the end of the list, every entry into the queue (since HO 793 the wide listing's
-// too). Returns whether it reached the end, which a cut or a thrown page doesn't.
+// too). Returns whether it reached the end, which a cut or a thrown page doesn't. HO 839: `congress` is the one listed
+// (the tail's is the previous one).
 async function walkList(
   db: ReturnType<typeof getDb>,
   apiKey: string,
   from: string,
-  cfg: { overlap: number; deadlineMs?: number; source: QueueSource; wide: boolean },
+  cfg: { overlap: number; deadlineMs?: number; source: QueueSource; wide: boolean; congress: number },
   stats: SyncStats,
 ): Promise<boolean> {
   let offset = 0;
@@ -530,7 +559,7 @@ async function walkList(
         console.log(`budget reached before list page offset=${offset}; the listing from ${from} is cut`);
         return false;
       }
-      const page = await fetchJson<ListResponse>(listUrl(from, offset, apiKey));
+      const page = await fetchJson<ListResponse>(listUrl(cfg.congress, from, offset, apiKey));
       stats.pages++;
       if (offset === 0 && !cfg.wide) stats.listedCount = page.pagination?.count ?? null;
       const bills = page.bills ?? [];
@@ -686,6 +715,65 @@ async function drain(
   }
 }
 
+// HO 839: the previous Congress's tail, run after the current listing. Its frontier is its own sync_state row,
+// keyed by the tail's congress, so a row left from an earlier switch starts over. It writes only that row.
+async function runTail(
+  db: ReturnType<typeof getDb>,
+  apiKey: string,
+  tailCongress: number,
+  frontierAtTickStart: string,
+  cfg: { overlap: number; deadlineMs?: number; source: QueueSource },
+  stats: SyncStats,
+): Promise<BillsTailStats> {
+  const r = await db.execute({ sql: "SELECT value FROM sync_state WHERE key = ?", args: [TAIL_KEY] });
+  let stored: { congress?: number; frontier?: string } | null = null;
+  try {
+    stored = JSON.parse(String(r.rows[0]?.value ?? "null")) as { congress?: number; frontier?: string } | null;
+  } catch {
+    stored = null;
+  }
+  let from: string;
+  let initialized = false;
+  if (stored && stored.congress === tailCongress && typeof stored.frontier === "string") {
+    from = stored.frontier;
+  } else {
+    from = billsTailStart(frontierAtTickStart, congressTermDates(tailCongress + 1).start.getTime());
+    await setSyncState(db, TAIL_KEY, JSON.stringify({ congress: tailCongress, frontier: from }));
+    initialized = true;
+  }
+  console.log(`tail of the ${ordinal(tailCongress)} listed since ${from}${initialized ? " (first in this window)" : ""}`);
+  const pagesBefore = stats.pages;
+  const enqueuedBefore = stats.enqueued;
+  // The tail's own error is what its walk leaves in a cleared listError; the current listing's is put back after.
+  const errorBefore = stats.listError;
+  stats.listError = null;
+  const startedAt = Date.now();
+  const complete = await walkList(
+    db,
+    apiKey,
+    from,
+    { overlap: cfg.overlap, deadlineMs: cfg.deadlineMs, source: cfg.source, wide: true, congress: tailCongress },
+    stats,
+  );
+  const error = stats.listError;
+  stats.listError = errorBefore;
+  let frontierAfter = from;
+  if (complete) {
+    frontierAfter = isoSeconds(startedAt - FRONTIER_MARGIN_MS);
+    await setSyncState(db, TAIL_KEY, JSON.stringify({ congress: tailCongress, frontier: frontierAfter }));
+  }
+  return {
+    congress: tailCongress,
+    from,
+    frontierAfter,
+    initialized,
+    complete,
+    pages: stats.pages - pagesBefore,
+    enqueued: stats.enqueued - enqueuedBefore,
+    error,
+  };
+}
+
 export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
   const apiKey = process.env.CONGRESS_API_KEY;
   if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
@@ -694,6 +782,9 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
   const deadlineMs = opts.deadlineMs;
   const source: QueueSource = opts.source ?? "live";
   const overlap = opts.overlap ?? OVERLAP;
+  // HO 839: one reading of the clock per tick, for the listing's congress and the tail's window.
+  const now = new Date();
+  const congress = getCurrentCongress(now);
   const stats: SyncStats = {
     seen: 0,
     upserted: 0,
@@ -746,7 +837,7 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
     );
 
     const listingStartedAt = Date.now();
-    stats.listComplete = await walkList(db, apiKey, from, { overlap, deadlineMs, source, wide: false }, stats);
+    stats.listComplete = await walkList(db, apiKey, from, { overlap, deadlineMs, source, wide: false, congress }, stats);
     if (stats.listComplete && !explicit) {
       const next = isoSeconds(listingStartedAt - FRONTIER_MARGIN_MS);
       await setFrontier(db, next);
@@ -759,9 +850,14 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
       stats.wide = true;
       const wideFrom = isoSeconds(Date.parse(normalizeDateTime(from)) - WIDE_WINDOW_MS);
       console.log(`wide listing since ${wideFrom}: every entry it lists`);
-      stats.wideComplete = await walkList(db, apiKey, wideFrom, { overlap, deadlineMs, source, wide: true }, stats);
+      stats.wideComplete = await walkList(db, apiKey, wideFrom, { overlap, deadlineMs, source, wide: true, congress }, stats);
       if (stats.wideComplete) await setSyncState(db, WIDE_KEY, new Date().toISOString());
     }
+
+    // HO 839: the previous Congress's tail, in its window, after the current listing. Not on an explicit
+    // fromDateTime (a run by hand), as the wide listing isn't.
+    const tail = explicit ? null : previousCongressTail(now, TAIL_DAYS);
+    if (tail) stats.tail = await runTail(db, apiKey, tail.congress, frontier, { overlap, deadlineMs, source }, stats);
   }
 
   await drain(db, apiKey, { source, deadlineMs, maxResets: opts.maxResets, order: opts.drainOrder }, stats);

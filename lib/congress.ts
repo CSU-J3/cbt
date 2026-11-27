@@ -105,14 +105,49 @@ export function weekOfSession(day: string, congress: number): number | null {
 // the 120th begins and the tail is { congress: 119, session: 2 }; at
 // 2027-01-10T00:00:00Z the instant seven days back is the 120th's too, so the
 // tail is null. Null outside the window.
-const TAIL_MS = 7 * 86_400_000;
+// HO 839: the window is an argument, 7 days by default (the vote syncs and the
+// nominations sync); the bills sync takes 21 (838-ff-go.md ruling 5).
+const DAY_MS = 86_400_000;
 
 export function previousCongressTail(
   now: Date = new Date(),
+  days = 7,
 ): { congress: number; session: 2 } | null {
   const current = getCurrentCongress(now);
-  if (getCurrentCongress(new Date(now.getTime() - TAIL_MS)) === current) return null;
+  if (getCurrentCongress(new Date(now.getTime() - days * DAY_MS)) === current) return null;
   return { congress: current - 1, session: 2 };
+}
+
+// HO 839 (838-ff-go.md ruling 5): where the bills sync's tail of the previous
+// Congress starts listing, the first time a window opens. That's the frontier as
+// it stood at the switch, or 48 hours before the switch if that's lower, so a
+// 119th update indexed late by Congress.gov, or in the last ticks before the
+// switch, is listed again. Read when the frontier is already past the switch
+// (the tail's first tick came late), it's the 48 hours. ISO, to the second.
+const TAIL_LOOKBACK_MS = 48 * 60 * 60_000;
+
+export function billsTailStart(frontier: string, switchMs: number): string {
+  const f = Date.parse(frontier);
+  const start = Number.isNaN(f) ? switchMs - TAIL_LOOKBACK_MS : Math.min(f, switchMs - TAIL_LOOKBACK_MS);
+  return new Date(start).toISOString().replace(/\.\d+Z$/, "Z");
+}
+
+// HO 839 (838-ff-go.md ruling 5): the filing years the lobbying sync reads, the
+// current Congress's two, and, until Feb 15 of its first year INCLUSIVE (to the
+// end of that day, UTC), the year before at the front. Q4 LD-2s are due Jan 20,
+// so the previous year's last quarter and its amendments land after the switch.
+// `tailYear` is that year, or null: its filings link bills of the previous
+// Congress. The 119th's years are [2025, 2026]; from 2027-01-03T00:00:00Z through
+// 2027-02-15T23:59:59Z they're [2026, 2027, 2028], and from 2027-02-16T00:00:00Z
+// [2027, 2028].
+export function lobbyingFilingYears(now: Date = new Date()): {
+  years: number[];
+  tailYear: number | null;
+} {
+  const firstYear = congressTermDates(getCurrentCongress(now)).start.getUTCFullYear();
+  const tailYear = now.getTime() < Date.UTC(firstYear, 1, 16) ? firstYear - 1 : null;
+  const years = [firstYear, firstYear + 1];
+  return { years: tailYear === null ? years : [tailYear, ...years], tailYear };
 }
 
 // HO 838 (the HO 838 ruling 4): the ideology strip and the polarization band
