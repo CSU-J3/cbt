@@ -40,7 +40,8 @@ const API_BASE = "https://api.congress.gov/v3";
 // to an event being re-upserted. Carries the same tail tradeoff as committees-sync: once
 // this rolls, a 119th meeting whose detail changes afterwards is no longer walked (SKILL,
 // Congress rollover tradeoff).
-const CONGRESS = getCurrentCongress();
+// HO 839: no module-level congress. syncMeetings reads getCurrentCongress() when it runs and passes it on;
+// a constant taken at module load kept a warm instance on the old Congress past 00:00Z Jan 3.
 const CHAMBERS = ["house", "senate"] as const;
 type Chamber = (typeof CHAMBERS)[number];
 
@@ -162,7 +163,7 @@ type ListRead = {
 // (review): an event already read being deleted while one not yet read moves to the head
 // leaves the unique ids equal to the final count with the moved one never read.
 // A page that fails keeps what was read before it.
-async function readWholeList(chamber: Chamber, deadline: number): Promise<ListRead> {
+async function readWholeList(chamber: Chamber, deadline: number, congress: number): Promise<ListRead> {
   const key = apiKey();
   const items = new Map<string, string>();
   let offset = 0;
@@ -172,7 +173,7 @@ async function readWholeList(chamber: Chamber, deadline: number): Promise<ListRe
   let ended = false;
   try {
     while (pages < LIST_MAX_PAGES) {
-      const url = `${API_BASE}/committee-meeting/${CONGRESS}/${chamber}?api_key=${key}&format=json&limit=${LIST_LIMIT}&offset=${offset}`;
+      const url = `${API_BASE}/committee-meeting/${congress}/${chamber}?api_key=${key}&format=json&limit=${LIST_LIMIT}&offset=${offset}`;
       const j = await getJson<{
         committeeMeetings?: Array<{ eventId?: string | number; updateDate?: string }>;
         pagination?: { next?: string; count?: number };
@@ -231,8 +232,9 @@ export async function fetchMeetingDetail(
   chamber: Chamber,
   eventId: string,
   deadline = Number.POSITIVE_INFINITY,
+  congress: number = getCurrentCongress(),
 ): Promise<ApiMeeting | null> {
-  const url = `${API_BASE}/committee-meeting/${CONGRESS}/${chamber}/${eventId}?api_key=${apiKey()}&format=json`;
+  const url = `${API_BASE}/committee-meeting/${congress}/${chamber}/${eventId}?api_key=${apiKey()}&format=json`;
   const j = await getJson<{ committeeMeeting?: ApiMeeting }>(
     url,
     `meeting detail ${chamber}/${eventId}`,
@@ -324,6 +326,7 @@ export async function writeMeetingDocuments(m: ApiMeeting): Promise<DocumentWrit
 async function upsertMeeting(
   chamber: Chamber,
   m: ApiMeeting,
+  congress: number,
 ): Promise<{ billRows: number } & DocumentWrite> {
   const db = getDb();
   const eventId = m.eventId!;
@@ -347,7 +350,7 @@ async function upsertMeeting(
               absent_upstream_at = NULL`,
       args: [
         eventId,
-        m.congress ?? CONGRESS,
+        m.congress ?? congress,
         chamber,
         m.date ?? null,
         m.type ?? null,
@@ -441,6 +444,8 @@ export async function syncMeetings(
   const deadline = opts.deadlineMs ?? Number.POSITIVE_INFINITY;
   const limit = opts.perTickLimit ?? DEFAULT_PER_TICK_LIMIT;
   const db = getDb();
+  // HO 839: the run's one congress, for the lists, the details, the upserts and the absent stamps.
+  const congress = getCurrentCongress();
   const r: MeetingsSyncResult = {
     stopReason: "complete",
     pages: { house: 0, senate: 0 },
@@ -495,7 +500,7 @@ export async function syncMeetings(
       r.absent.skipped.push(`${chamber}: list not read (${stop})`);
       continue;
     }
-    const list = await readWholeList(chamber, deadline);
+    const list = await readWholeList(chamber, deadline, congress);
     r.pages[chamber] = list.pages;
     r.listSize[chamber] = list.items.size;
     r.listCount[chamber] = list.count;
@@ -514,7 +519,7 @@ export async function syncMeetings(
       r.absent.skipped.push(`${chamber}: list incomplete (${list.items.size} unique of ${list.count ?? "?"}${list.countMoved ? ", the count moved during the read" : ""})`);
     } else {
       stampIds = [...stored]
-        .filter(([id, s]) => s.congress === CONGRESS && s.chamber === chamber && s.absent == null && !list.items.has(id))
+        .filter(([id, s]) => s.congress === congress && s.chamber === chamber && s.absent == null && !list.items.has(id))
         .map(([id]) => id);
       if (stampIds.length > ABSENT_MAX_PER_RUN) {
         r.absent.refused.push(`${chamber}: ${stampIds.length} rows not listed, more than ${ABSENT_MAX_PER_RUN}`);
@@ -582,9 +587,9 @@ export async function syncMeetings(
     }
     attempts++;
     try {
-      const detail = await fetchMeetingDetail(item.chamber, item.eventId, deadline);
+      const detail = await fetchMeetingDetail(item.chamber, item.eventId, deadline, congress);
       if (!detail) throw new Error(`meeting detail ${item.chamber}/${item.eventId}: 200 with no committeeMeeting`);
-      const w = await upsertMeeting(item.chamber, detail);
+      const w = await upsertMeeting(item.chamber, detail, congress);
       r.refreshed++;
       r.billRowsUpserted += w.billRows;
       r.documentsStored += w.documents;

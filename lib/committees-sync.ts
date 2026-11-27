@@ -36,7 +36,7 @@ const API_BASE = "https://api.congress.gov/v3";
 // present. Since HO 754 it is one of two: /api/cron/committee-meetings rolls the same way. Both uses are
 // safe on an empty answer, but they are safe for different reasons:
 //
-//   :`/committee/${CONGRESS}` (the list) is a pure upsert — zero rows means the
+//   :`/committee/{congress}` (the list) is a pure upsert — zero rows means the
 //     batch is never shipped. Nothing is deleted, nothing is marked stale.
 //   :selectBillsToWalk filters `bills WHERE congress = ?`, and since HO 753 the
 //     walk carries no cursor (the per-bill stamps name no congress), so it starts
@@ -45,7 +45,8 @@ const API_BASE = "https://api.congress.gov/v3";
 //     delayed enactment signature, a lame-duck action) stops being walked.
 //     That is the tradeoff SKILL already documents for lib/sync.ts's bill list,
 //     reaching a second site; it is accepted here for the same reason.
-const CONGRESS = getCurrentCongress();
+// HO 839: no module-level congress. Each entry point reads getCurrentCongress() when it runs; a constant
+// taken at module load kept a warm instance on the old Congress past 00:00Z Jan 3 until it was recycled.
 const COMMITTEES_LIST_LIMIT = 250;
 const PER_BILL_HTTP_TIMEOUT_MS = 8_000;
 // HO 756: a bill fetch in flight at the walk's deadline is cut this long after it
@@ -90,6 +91,7 @@ export type CommitteesListResult = {
 export async function syncCommitteesList(): Promise<CommitteesListResult> {
   const key = apiKey();
   const db = getDb();
+  const congress = getCurrentCongress();
   let offset = 0;
   let pages = 0;
   let fetched = 0;
@@ -97,7 +99,7 @@ export async function syncCommitteesList(): Promise<CommitteesListResult> {
   const now = new Date().toISOString();
   const stmts: { sql: string; args: (string | number | null)[] }[] = [];
   while (true) {
-    const url = `${API_BASE}/committee/${CONGRESS}?api_key=${key}&format=json&limit=${COMMITTEES_LIST_LIMIT}&offset=${offset}`;
+    const url = `${API_BASE}/committee/${congress}?api_key=${key}&format=json&limit=${COMMITTEES_LIST_LIMIT}&offset=${offset}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(PER_BILL_HTTP_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`committees list HTTP ${res.status} at offset ${offset}`);
     const j = (await res.json()) as { committees?: ApiCommittee[]; pagination?: { next?: string } };
@@ -220,7 +222,7 @@ async function selectBillsToWalk(limit: number): Promise<BillKey[]> {
             AND json_extract(raw_json, '$.committees.count') > 0
           ORDER BY (changed_at IS NULL), changed_at ASC, id ASC
           LIMIT ?`,
-    args: [CONGRESS, GIVE_UP_AT, limit],
+    args: [getCurrentCongress(), GIVE_UP_AT, limit],
   });
   return rs.rows.map((r) => ({
     id: r.id as string,
@@ -235,12 +237,13 @@ async function selectBillsToWalk(limit: number): Promise<BillKey[]> {
 // ones set aside after GIVE_UP_AT failed walks (they come back on their next change).
 export async function readCommitteeWalkBacklog(): Promise<{ remaining: number; gaveUp: { count: number; ids: string[] } }> {
   const db = getDb();
+  const congress = getCurrentCongress();
   const rs = await db.execute({
     sql: `SELECT SUM(CASE WHEN COALESCE(committee_walk_failures, 0) < ? THEN 1 ELSE 0 END) AS remaining,
                  SUM(CASE WHEN COALESCE(committee_walk_failures, 0) >= ? THEN 1 ELSE 0 END) AS gave_up
           FROM bills
           WHERE congress = ? AND ${OWED} AND json_extract(raw_json, '$.committees.count') > 0`,
-    args: [GIVE_UP_AT, GIVE_UP_AT, CONGRESS],
+    args: [GIVE_UP_AT, GIVE_UP_AT, congress],
   });
   const remaining = Number(rs.rows[0]?.remaining ?? 0);
   const count = Number(rs.rows[0]?.gave_up ?? 0);
@@ -250,7 +253,7 @@ export async function readCommitteeWalkBacklog(): Promise<{ remaining: number; g
               WHERE congress = ? AND ${OWED} AND COALESCE(committee_walk_failures, 0) >= ?
                 AND json_extract(raw_json, '$.committees.count') > 0
               ORDER BY id LIMIT 20`,
-        args: [CONGRESS, GIVE_UP_AT],
+        args: [congress, GIVE_UP_AT],
       })).rows.map((r) => r.id as string)
     : [];
   return { remaining, gaveUp: { count, ids } };
