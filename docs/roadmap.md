@@ -4109,3 +4109,44 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - Line 123 annotated, staying open until the write reads 2028 on prod. One line opened: the 60 s ceiling.
   - Reconcile 287 / 406 / 693 at open, 287 / 407 / 694 at close.
 - **Also notes now run through HO 838.**
+
+**Also (HO 839): the rollover's second half.** Nine labels take the scopes ruled at HO 838, and the hub's party medians read the scores' Congress. The bills, nominations and lobbying syncs keep the previous Congress's tail after the switch, and the committees and meetings syncs read the congress per run. `check:rollover` grows to nine cases. Built on `01e515c`, on `839-review`.
+
+- **HO 838's FF, taken:** `main` went `0aec365..d5c17ee` at 2:38:50 PM MST Nov 27, no force. Production record `8119830839`. `ci.yml` `46071652425`, with the new rollover step. `e2e-prod` `46071746155`, 237 of 237, the smoke job 9m17s. `/api/health` 200.
+  - The H001103 write ran at 2:39:13 PM: 1 of 555 rows, on Corey's word. The hub read *Next election 2028*.
+  - `01e515c` was pushed at 2:49:54 PM.
+- **STEP 0 held, claims 1 to 9.** Claim 4: the nine sites sit at the table's lines, but HO 838's additions moved the query anchors in `lib/queries.ts` by 62 lines. Then:
+  - (5) the bills sync keeps `bills_frontier` and `bills_wide_at`, and is bounded by 240 s;
+  - (6) the nominations frontier was one `MAX(update_date)` over the whole table, which a tail would move, so it's per congress now;
+  - (7) `extractBillIds` stamps `getCurrentCongress()` itself, so it takes a congress;
+  - (8) amendments read *can't say*, so a line was filed;
+  - (9) the two constants have seven use sites.
+- **Claim 7's finding, flagged for the chat:** every one of the last 10 `/api/cron/lda` ticks hit its 280 s deadline. Each re-reads 2026 Q3's boundary days, about 5,500 filings at 25 a page, before reaching a new filing. Q3 2026 holds 12,871 filings and gains 0 to 325 a tick. Q4 2026, due Jan 20, isn't reached, with or without the tail.
+- **§ 1:**
+  - rows 1 to 9, each number and label from one value;
+  - `getMemberIdeology` with `SCORES_CONGRESS_SQL`;
+  - `previousCongressTail(now, days)`, the bills tail (21 days, its own `bills_tail_frontier` row), the nominations tail (7 days, per-congress frontiers) and the lobbying tail (the previous year through Feb 15 inclusive);
+  - the per-run congress in committees and meetings;
+  - `check:rollover` cases 6 to 9, every control firing.
+- **Leg C found a bug before the push.** `getCommitteeNominations`' rows query gained `AND congress = ?` without its argument. Its `try/catch` emptied it, and `/committee/ssju00` lost its *Nominations referred* section. The read-only review confirmed it independently. Commit 1 was amended (bound argument added) and the later commits re-picked.
+  - Leg C also showed that handing `/reports`' read to the chart as a prop reordered its flight payload. So the heading now takes `lawsComparisonPair()`, the ruling's words.
+- **The review:** 5 distinct findings. The bind bug and three low ones in the tails (the bills tail's error read, and the nominations tail's frontier read and counts on a throw) were fixed by amending commit 3. The fifth, no daily late-index re-read for the bills tail, is flagged.
+- **The legs:**
+  - A: 9 of 9.
+  - B: 0 refused.
+  - C (run 2, after the fix): equal on `/nominations`, `/committee/ssju00`, `/reports` and the hub. The rest are the named differences: row 2's sentence, row 3's label (12 card backs), the chart's `axis` prop on `/members`, and each member's `votesCongress` on `/electoral` (107, flight only). A Ballotpedia read time moved between the two servers' cache fills.
+  - D: the files § 1 touches.
+  - E: HO 790's stub route (a `file:` copy, a tripwire, a set clock). Each tail lists after the current listing and never moves the current frontier, a deadline cuts the tail and not the current listing, and the base reads none of it.
+- **Flagged in the paste:**
+  - the LDA re-read;
+  - the bills tail's late indexing;
+  - the nominations frontier made per congress;
+  - `extractBillIds`' new argument (a file outside the handoff's list);
+  - commit 1 stayed one commit;
+  - the moved anchors.
+- **The docs:**
+  - C4 struck in place, with *scopes ruled at HO 838, built at HO 839*;
+  - the day-of list gains the bills tail's and Q4 2026's readings;
+  - one line opened, the amendments tail.
+  - Reconcile 286 / 408 / 694 at open, 287 / 408 / 695 at close.
+- **Also notes now run through HO 839.**
