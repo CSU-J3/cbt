@@ -26,6 +26,7 @@ import { RacesHeroBand } from "@/components/RacesHeroBand";
 import { SeatOutlookList } from "@/components/SeatOutlookList";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
+import { getCurrentCongress } from "@/lib/congress";
 import { clockNowMs } from "@/lib/clock";
 import { buildElectoralRows, unlessStale, withoutCalledOdds, withoutStaleOdds } from "@/lib/electoral-rows";
 import { electoralRowsWithLiveMarket, fixtureRequested } from "@/lib/fixtures/max-content";
@@ -136,7 +137,8 @@ export default async function ElectoralPage({
   const onBallots = [...new Set(Object.values(general.races).flatMap((g) => g.memberIds))].sort();
   const [moves, members, news, results] = await Promise.all([
     getRecentRaceMoves(races.map((r) => r.raceId)),
-    getBallotMemberFacts(general.memberIds),
+    // HO 839 (row 4): the votes' Congress is in the key, and the tile labels from it.
+    getBallotMemberFacts(general.memberIds, getCurrentCongress()),
     getBallotNews(onBallots),
     passed ? getRaceResults(cycle) : Promise.resolve(null),
   ]);

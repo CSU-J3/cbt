@@ -131,9 +131,11 @@ add("/welcome · getBreakingNewsForHome({limit: 12, hours: 72})", () => Q.getBre
 add("/welcome · getClusterStats", () => Q.getClusterStats());
 
 // ---- /electoral (app/electoral/page.tsx:139, the 2026 branch) ----------------------------
-add("/electoral · getBallotMemberFacts(getGeneralBallots(2026).memberIds)", async () => {
+add("/electoral · getBallotMemberFacts(getGeneralBallots(2026).memberIds, the current congress)", async () => {
   const general = await Q.getGeneralBallots(2026);
-  return Q.getBallotMemberFacts(general.memberIds);
+  // HO 839: the votes' Congress is the caller's argument now (app/electoral/page.tsx).
+  const { getCurrentCongress } = await import("../../lib/congress");
+  return Q.getBallotMemberFacts(general.memberIds, getCurrentCongress());
 });
 
 // ---- /members (app/members/page.tsx:117-238) ------------------------------------------------

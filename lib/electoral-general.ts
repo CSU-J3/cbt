@@ -406,8 +406,10 @@ export type MemberFacts = {
     sourceUrl: string | null;
     isSenateCampaign: boolean; // HO 416: a House member whose committee is a Senate one
   } | null;
-  // getMemberVoteStats' figure: not_voting / total over the 119th's roll calls.
+  // getMemberVoteStats' figure: not_voting / total over the roll calls of
+  // `votesCongress`, the Congress the read used (HO 839: the tile's label is it).
   missed: { pct: number; total: number } | null;
+  votesCongress: number;
   dim1: number | null;
   sponsored: number;
   enacted: number;
@@ -509,6 +511,7 @@ export async function readMemberFacts(db: Client, bioguideIds: string[], congres
           }
         : null,
       missed: total > 0 ? { pct: Math.round((Number(v?.not_voting ?? 0) / total) * 100), total } : null,
+      votesCongress: congress,
       dim1: num(ideo.get(id)?.nominate_dim1),
       sponsored: Number(b?.sponsored ?? 0),
       enacted: Number(b?.enacted ?? 0),

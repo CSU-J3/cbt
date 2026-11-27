@@ -56,6 +56,11 @@ export interface LobbyingStats {
   // the blob instead). OPTIONAL: blobs written before HO 544 lack it — consumers
   // fall back to billLinkedPct·filings until the next rollup repopulates.
   billLinkedFilings?: number;
+  // HO 839 (838-ff-go.md ruling 2, row 2): the first and last filing_year the
+  // corpus holds, so /lobbying's label and these counts come from one
+  // generatedAt. OPTIONAL: blobs written before HO 839 lack it, and the page's
+  // sentence then names no years until the next rollup writes it.
+  filingYears?: { first: number; last: number };
 }
 export interface IssueStat {
   code: string;
@@ -253,6 +258,8 @@ export interface LdaTables {
   displayByCode: Map<string, string>;
   activityCountByCode: Map<string, number>;
   activityRowCount: number; // every activity carries a code (stats.activities)
+  // HO 839: the lowest and highest filing_year read; null on an empty table.
+  filingYears: { first: number; last: number } | null;
 }
 
 // Read all three LDA tables SEQUENTIALLY (the shape this Turso is fast at) into
@@ -262,7 +269,7 @@ export async function readLdaTables(db: Client): Promise<LdaTables> {
   const [fRes, aRes, bRes] = [
     await db.execute(
       `SELECT filing_uuid, registrant_name, client_name, dt_posted,
-              filing_type, filing_period, income, expenses FROM lda_filings`,
+              filing_type, filing_period, income, expenses, filing_year FROM lda_filings`,
     ),
     await db.execute(
       `SELECT filing_uuid, general_issue_code, general_issue_code_display
@@ -275,8 +282,15 @@ export async function readLdaTables(db: Client): Promise<LdaTables> {
   const filings = new Map<string, FilingRec>();
   const registrantSet = new Set<string>();
   const clientSet = new Set<string>();
+  let yearFirst: number | null = null;
+  let yearLast: number | null = null;
   for (const r of fRes.rows) {
     const uuid = str(r.filing_uuid);
+    const year = numOrNull(r.filing_year);
+    if (year !== null) {
+      if (yearFirst === null || year < yearFirst) yearFirst = year;
+      if (yearLast === null || year > yearLast) yearLast = year;
+    }
     const rn = strOrNull(r.registrant_name);
     const cn = strOrNull(r.client_name);
     filings.set(uuid, {
@@ -326,6 +340,7 @@ export async function readLdaTables(db: Client): Promise<LdaTables> {
     displayByCode,
     activityCountByCode,
     activityRowCount: aRes.rows.length,
+    filingYears: yearFirst !== null && yearLast !== null ? { first: yearFirst, last: yearLast } : null,
   };
 }
 
@@ -365,6 +380,7 @@ export function computeIssueRollup(
     clients: clientSet.size,
     billLinkedPct: filings.size > 0 ? (100 * linkedUuids.size) / filings.size : 0,
     billLinkedFilings: linkedUuids.size, // HO 544 — the toggle-on pagination total
+    ...(tables.filingYears ? { filingYears: tables.filingYears } : {}), // HO 839 — the label's years
   };
 
   const issues: IssueStat[] = [...uuidsByCode.entries()]

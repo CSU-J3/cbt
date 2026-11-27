@@ -12,6 +12,7 @@ import {
   HearingMeetingsEmbed,
   type HearingEmbedGroup,
 } from "@/components/HearingMeetingsEmbed";
+import { getCurrentCongress } from "@/lib/congress";
 import { NominationRow } from "@/components/NominationRow";
 import {
   fixtureRequested,
@@ -189,7 +190,8 @@ export default async function CommitteeDetailPage({
       getCommitteeBills(committee.systemCode, RECENT_LIMIT, RECENT_DAYS),
       getWatchedBillIds(),
       getMeetingsByCommittee(committee.systemCode),
-      getCommitteeNominations(committee.systemCode, NOMINATIONS_CAP),
+      // HO 839: the current Congress's, as /nominations counts.
+      getCommitteeNominations(committee.systemCode, NOMINATIONS_CAP, getCurrentCongress()),
     ]);
   const watchedSet = new Set(watchedIds);
 

@@ -16,7 +16,7 @@ import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { isTerritorialState } from "@/lib/states";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
 import { StateFilter } from "@/components/StateFilter";
-import { ordinal } from "@/lib/congress";
+import { getCurrentCongress, ordinal, polarizationAxis } from "@/lib/congress";
 import { cleanMeetingTitle, etDayLabel, etTimeLabel } from "@/lib/hearings";
 import {
   buildTopicSegments,
@@ -470,6 +470,9 @@ export default async function MembersPage({
         <PolarizationOverTime
           history={polarizationHistory}
           current={{ house: polarizationBand.house, senate: polarizationBand.senate }}
+          // HO 839: the axis from the band's scores' Congress (rows 5 to 8). An
+          // empty member_ideology has no dot, and the axis then ends at today's Congress.
+          axis={polarizationAxis(polarizationBand.congress ?? getCurrentCongress())}
           initialChamber={chamber === "senate" ? "senate" : "house"}
         />
 

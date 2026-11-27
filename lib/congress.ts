@@ -126,6 +126,30 @@ export function previousCongressTail(
 export const SCORES_CONGRESS_SQL =
   "mi.congress = (SELECT MAX(congress) FROM member_ideology)";
 
+// HO 839 (838-ff-go.md ruling 2, scope-table rows 5 to 8): the polarization
+// chart's axis, from the scores' Congress, the one the band filters on
+// (SCORES_CONGRESS_SQL). The gap label names it. The history line ends at the
+// Congress before it, so line and dot never draw the same Congress. The dot sits
+// at its start year, which is also the x-domain's end, the title's and the aria
+// label's last year. Computed on the server and handed to the chart.
+export function polarizationAxis(scoresCongress: number): {
+  gapLabel: string;
+  lineEndCongress: number;
+  dotYear: number;
+} {
+  return {
+    gapLabel: `GAP · ${ordinal(scoresCongress).toUpperCase()}`,
+    lineEndCongress: scoresCongress - 1,
+    dotYear: congressTermDates(scoresCongress).start.getUTCFullYear(),
+  };
+}
+
+// HO 839 (row 9): /reports' heading over the laws chart, from the chart's own
+// pair (the reader's `previous`), so the heading and the chart can't disagree.
+export function productivityHeading(previous: number): string {
+  return `Productivity vs. the ${ordinal(previous)}`;
+}
+
 const TERM_MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

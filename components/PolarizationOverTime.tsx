@@ -27,19 +27,19 @@ const H = 384;
 const PAD = { left: 52, right: 70, top: 20, bottom: 42 };
 const IW = W - PAD.left - PAD.right; // 1018
 const IH = H - PAD.top - PAD.bottom; // 322
-const X_DOM: [number, number] = [1879, 2025];
+// HO 839 (838-ff-go.md ruling 2, rows 6 to 8): the x-domain runs from 1879 to the
+// dot's year, the start year of the band's scores' Congress, so the dot and its
+// label stay at the plot's right edge whichever Congress it is.
+const X_START = 1879;
 // Symmetric, 0-centered so SvgGridY's default fraction ticks land on round values
 // (−0.6/−0.3/0/+0.3/+0.6) with 0 a gridline. Real range over the drawn era is
 // −0.457..+0.562 (incl. the live current dot), so it fits with margin.
 const Y_DOM: [number, number] = [-0.6, 0.6];
 const START_CONGRESS = 46; // 1879, the mockup's post-Reconstruction start
-const LINE_END_CONGRESS = 118; // history line ends at the 118th (2023)
-const CURRENT_YEAR = 2025; // the 119th dot, from the live band
+// HO 839: the line's last Congress and the dot's year come in as `axis`
+// (polarizationAxis): the scores' Congress − 1, and its start year.
 const X_GRID_YEARS = [1880, 1900, 1920, 1940, 1960, 1980, 2000, 2020];
 
-function xs(year: number): number {
-  return PAD.left + ((year - X_DOM[0]) / (X_DOM[1] - X_DOM[0])) * IW;
-}
 function ys(v: number): number {
   return PAD.top + ((Y_DOM[1] - v) / (Y_DOM[1] - Y_DOM[0])) * IH;
 }
@@ -54,24 +54,29 @@ export function PolarizationOverTime({
   history,
   current,
   initialChamber,
+  axis,
 }: {
   history: PolarizationHistoryRow[];
   current: { house: PolarizationRail; senate: PolarizationRail };
   initialChamber: Chamber;
+  // HO 839: from the band's scores' Congress, computed on the server.
+  axis: { gapLabel: string; lineEndCongress: number; dotYear: number };
 }) {
+  const xs = (year: number): number =>
+    PAD.left + ((year - X_START) / (axis.dotYear - X_START)) * IW;
   const [open, setOpen] = useState(false);
   const [chamber, setChamber] = useState<Chamber>(initialChamber);
   const [hover, setHover] = useState<{ pt: Pt; gap: number } | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // The historical line: selected chamber, 1879 (46th) through the 118th, both
-  // medians present. Caucus source.
+  // The historical line: selected chamber, 1879 (46th) through the Congress before
+  // the dot's (HO 839: axis.lineEndCongress), both medians present. Caucus source.
   const series: Pt[] = history
     .filter(
       (r) =>
         r.chamber === chamber &&
         r.congress >= START_CONGRESS &&
-        r.congress <= LINE_END_CONGRESS &&
+        r.congress <= axis.lineEndCongress &&
         r.demMedian != null &&
         r.repMedian != null,
     )
@@ -93,7 +98,7 @@ export function PolarizationOverTime({
     }
   }
 
-  // Current-Congress dot (2025 / 119th) from the live band (registration source).
+  // The scores' Congress's dot (HO 839: at axis.dotYear) from the live band (registration source).
   const cur = current[chamber];
 
   const dLine = series
@@ -120,7 +125,7 @@ export function PolarizationOverTime({
           aria-expanded={open}
         >
           <span className="pol-time-chev">{open ? "▾" : "▸"}</span>
-          <span className="pol-time-title">POLARIZATION OVER TIME · 1879–2025</span>
+          <span className="pol-time-title">{`POLARIZATION OVER TIME · ${X_START}–${axis.dotYear}`}</span>
           <span className="pol-time-desc">party median on dim1 · per Congress</span>
         </button>
         {open ? (
@@ -151,7 +156,7 @@ export function PolarizationOverTime({
         <>
           <div className="pol-time-body">
             <ChartFrame
-              ariaLabel={`${chamber} party median on DW-NOMINATE dim1 per Congress, 1879 to 2025`}
+              ariaLabel={`${chamber} party median on DW-NOMINATE dim1 per Congress, ${X_START} to ${axis.dotYear}`}
               vbWidth={W}
               height={H}
             >
@@ -222,15 +227,15 @@ export function PolarizationOverTime({
                 </g>
               ) : null}
 
-              {/* current-Congress dot pair (2025 / 119th) from the live band, with
-                  the gap bracket — a distinct live source, NOT line-connected. */}
+              {/* the scores' Congress's dot pair (HO 839: at axis.dotYear) from the live
+                  band, with the gap bracket — a distinct live source, NOT line-connected. */}
               {cur.dem != null && cur.rep != null ? (
                 <g>
-                  <circle cx={xs(CURRENT_YEAR)} cy={ys(cur.dem)} r={3} fill="var(--party-democrat)" />
-                  <circle cx={xs(CURRENT_YEAR)} cy={ys(cur.rep)} r={3} fill="var(--party-republican)" />
+                  <circle cx={xs(axis.dotYear)} cy={ys(cur.dem)} r={3} fill="var(--party-democrat)" />
+                  <circle cx={xs(axis.dotYear)} cy={ys(cur.rep)} r={3} fill="var(--party-republican)" />
                   <line
-                    x1={xs(CURRENT_YEAR) + 8}
-                    x2={xs(CURRENT_YEAR) + 8}
+                    x1={xs(axis.dotYear) + 8}
+                    x2={xs(axis.dotYear) + 8}
                     y1={ys(cur.rep)}
                     y2={ys(cur.dem)}
                     stroke="var(--accent-amber)"
@@ -239,7 +244,7 @@ export function PolarizationOverTime({
                   />
                   {cur.gap != null ? (
                     <text
-                      x={xs(CURRENT_YEAR) + 11}
+                      x={xs(axis.dotYear) + 11}
                       y={(ys(cur.rep) + ys(cur.dem)) / 2 - 2}
                       fontSize={13}
                       fill="var(--accent-amber-bright)"
@@ -249,13 +254,13 @@ export function PolarizationOverTime({
                     </text>
                   ) : null}
                   <text
-                    x={xs(CURRENT_YEAR) + 11}
+                    x={xs(axis.dotYear) + 11}
                     y={(ys(cur.rep) + ys(cur.dem)) / 2 + 11}
                     fontSize={8}
                     fill="var(--text-dim)"
                     fontFamily="var(--font-mono)"
                   >
-                    GAP · 119TH
+                    {axis.gapLabel}
                   </text>
                 </g>
               ) : null}

@@ -4,6 +4,7 @@ import { LawsEnactedComparison } from "@/components/LawsEnactedComparison";
 import { Pagination } from "@/components/Pagination";
 import { ReportRow } from "@/components/ReportRow";
 import { formatWeekTitle } from "@/lib/report-generation";
+import { lawsComparisonPair, productivityHeading } from "@/lib/congress";
 import { getReportCount, getReportsWithLead } from "@/lib/queries";
 
 // Reads the DB; opt out of static prerender. unstable_cache still applies.
@@ -38,6 +39,10 @@ export default async function ReportsPage({
     getReportCount(),
     getReportsWithLead(PAGE_SIZE, offset),
   ]);
+  // HO 839 (838-ff-go.md ruling 2, row 9): the heading names the previous
+  // Congress of the laws chart's pair (lawsComparisonPair, the pair its reader
+  // compares), so the heading and the chart name the same two Congresses.
+  const lawsPair = lawsComparisonPair();
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
@@ -66,7 +71,7 @@ export default async function ReportsPage({
               className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
               style={{ color: "var(--accent-amber)" }}
             >
-              Productivity vs. the 118th
+              {productivityHeading(lawsPair.previous)}
             </p>
             <p
               className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"

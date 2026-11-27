@@ -271,8 +271,13 @@ export default async function LobbyingPage({
           className="mb-4 max-w-[70ch] text-[length:var(--fs-12)] leading-snug"
           style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}
         >
-          Who&rsquo;s paying to move what — LD-2 quarterly lobbying reports for the
-          119th, bucketed by issue area, with the numbered-bill link as an overlay.
+          {/* HO 839 (row 2): the filing years the rollup's corpus holds, from the same
+              blob as the counts above; a blob from before HO 839 names none. */}
+          {`Who’s paying to move what — LD-2 quarterly lobbying reports${
+            stats.filingYears
+              ? `, ${stats.filingYears.first === stats.filingYears.last ? stats.filingYears.first : `${stats.filingYears.first}–${stats.filingYears.last}`} filings`
+              : ""
+          }, bucketed by issue area, with the numbered-bill link as an overlay.`}
         </p>
 
         {/* Filter bar — count + (HO 544) sort segment & bill-linked toggle. The

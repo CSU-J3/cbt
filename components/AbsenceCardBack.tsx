@@ -151,7 +151,7 @@ export function AbsenceCardBack({
       ) : null}
       {bills.length > 0 ? (
         <dl className="abw-bk-block">
-          <dt>SPONSORED, 119TH</dt>
+          <dt>SPONSORED</dt>
           <dd>
             {/* Redundant against this payload — queryAbsenceWatch already caps
                 the list at the same constant — and kept so the render's cap

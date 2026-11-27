@@ -7,6 +7,7 @@ import {
 } from "@/components/NominationDispositionBadge";
 import { NominationRow } from "@/components/NominationRow";
 import { Pagination } from "@/components/Pagination";
+import { getCurrentCongress, ordinal } from "@/lib/congress";
 import { getCommitteeBySystemCode, getNominations, getNominationsSummary } from "@/lib/queries";
 
 // Reads the DB (live GROUP BY + filtered list); opt out of static prerender.
@@ -49,7 +50,10 @@ export default async function NominationsPage({
   const disposition = params.disposition || undefined;
   const committee = params.committee || undefined;
 
-  const summary = await getNominationsSummary();
+  // HO 839 (838-ff-go.md ruling 2, row 1): the current Congress's nominations,
+  // read once per request and passed to every read, so the counts and the label
+  // are one number.
+  const summary = await getNominationsSummary(getCurrentCongress());
 
   if (!summary || summary.civilianTotal === 0) {
     return (
@@ -60,14 +64,16 @@ export default async function NominationsPage({
             Nominations
           </h1>
           <p className="mt-6 text-[length:var(--fs-13)]" style={{ color: "var(--text-dim)" }}>
-            Nominations data is being prepared. Check back shortly.
+            {summary
+              ? `The ${ordinal(summary.congress)} Congress has no civilian nominations yet.`
+              : "Nominations data is being prepared. Check back shortly."}
           </p>
         </main>
       </div>
     );
   }
 
-  const list = await getNominations({ agency, disposition, committee, page: parsePage(params.page) });
+  const list = await getNominations({ congress: summary.congress, agency, disposition, committee, page: parsePage(params.page) });
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const page = Math.min(list.page, totalPages);
 
@@ -101,9 +107,7 @@ export default async function NominationsPage({
           </span>
         </div>
         <p className="mb-4 max-w-[70ch] text-[length:var(--fs-12)] leading-snug" style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}>
-          Who the president is nominating and where each stands — civilian nominees (judges,
-          cabinet and agency heads, ambassadors, US Attorneys), by agency and confirmation
-          status. Bulk military service promotions are excluded; the 119th filed{" "}
+          {`Who the president is nominating and where each stands — civilian nominees (judges, cabinet and agency heads, ambassadors, US Attorneys), by agency and confirmation status. Bulk military service promotions are excluded; the ${ordinal(summary.congress)} filed`}{" "}
           {summary.militaryTotal.toLocaleString()} of them.
         </p>
 

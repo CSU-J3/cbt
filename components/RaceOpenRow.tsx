@@ -19,6 +19,7 @@ import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { KalshiLine } from "@/components/race-cells";
 import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "@/lib/enums";
 import type { BallotEntry, MemberFacts, PalestinePools, RatingSource } from "@/lib/queries";
+import { ordinal } from "@/lib/congress";
 import type { ElectoralRow } from "@/lib/electoral-rows";
 import { formatDollarsCompact, formatRelativeAge } from "@/lib/format";
 import { ratingColor } from "@/lib/race-colors";
@@ -390,7 +391,7 @@ function Member({
       )}
       <div className="rl-tiles rl-rec">
         <Tile
-          label="Missed · 119th"
+          label={`Missed · ${ordinal(facts.votesCongress)}`}
           value={facts.missed ? `${facts.missed.pct}%` : "—"}
           sub={median != null ? `${facts.chamber === "senate" ? "Senate" : "House"} median ${median.toFixed(1)}%` : undefined}
         />

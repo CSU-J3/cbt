@@ -2329,9 +2329,11 @@ export const getGeneralBallots = unstable_cache(
 // What the member page prints for each of those members, batched. The key is
 // the page's sorted id list, which only a roster change moves. R10: the
 // missed-votes figure is member_votes, the member page's own read.
+// HO 839 (row 4): the votes' Congress is the caller's argument, so it's part of
+// the key, and each member's facts carry it (`votesCongress`) for the label.
 export const getBallotMemberFacts = unstable_cache(
-  async (bioguideIds: string[]): Promise<Record<string, MemberFacts>> =>
-    readMemberFacts(getDb(), bioguideIds, getCurrentCongress()),
+  async (bioguideIds: string[], congress: number): Promise<Record<string, MemberFacts>> =>
+    readMemberFacts(getDb(), bioguideIds, congress),
   ["getBallotMemberFacts"],
   { revalidate: 3600, tags: ["members", "member-fundraising", "member-ideology", "votes", "palestine"] },
 );
@@ -5319,22 +5321,37 @@ const NOMINATION_DISPOSITION_SET = new Set<string>(NOMINATION_PIPELINE_ORDER);
 const NOMINATIONS_PAGE_SIZE = 25;
 
 export interface NominationsSummary {
+  // HO 839: the Congress these counts are, the label's own number.
+  congress: number;
   byDisposition: { disposition: NominationDisposition; count: number }[]; // civilian, pipeline order
   byAgency: { organization: string; count: number }[]; // civilian, count desc
   civilianTotal: number;
   militaryTotal: number;
 }
 
+// HO 839 (838-ff-go.md ruling 2, scope-table row 1): one Congress's nominations.
+// A nomination belongs to one Congress, and an unconfirmed one goes back to the
+// President at its end, so the page counts the current Congress only. The
+// congress is the cached function's argument, so it's part of the key. A Congress
+// with no nominations yet returns zero totals (the page's own empty copy). Null
+// means the read failed.
 export const getNominationsSummary = unstable_cache(
-  async (): Promise<NominationsSummary | null> => {
+  async (congress: number): Promise<NominationsSummary | null> => {
     try {
       const db = getDb();
       const [dispRs, agencyRs, totalsRs] = await Promise.all([
-        db.execute("SELECT disposition, COUNT(*) AS n FROM nominations WHERE is_military = 0 GROUP BY disposition"),
-        db.execute(
-          "SELECT organization, COUNT(*) AS n FROM nominations WHERE is_military = 0 AND organization IS NOT NULL GROUP BY organization ORDER BY n DESC",
-        ),
-        db.execute("SELECT is_military, COUNT(*) AS n FROM nominations GROUP BY is_military"),
+        db.execute({
+          sql: "SELECT disposition, COUNT(*) AS n FROM nominations WHERE is_military = 0 AND congress = ? GROUP BY disposition",
+          args: [congress],
+        }),
+        db.execute({
+          sql: "SELECT organization, COUNT(*) AS n FROM nominations WHERE is_military = 0 AND congress = ? AND organization IS NOT NULL GROUP BY organization ORDER BY n DESC",
+          args: [congress],
+        }),
+        db.execute({
+          sql: "SELECT is_military, COUNT(*) AS n FROM nominations WHERE congress = ? GROUP BY is_military",
+          args: [congress],
+        }),
       ]);
       const dispMap = new Map<string, number>();
       for (const r of dispRs.rows) dispMap.set(String(r.disposition), Number(r.n));
@@ -5353,8 +5370,7 @@ export const getNominationsSummary = unstable_cache(
         if (Number(r.is_military) === 1) militaryTotal = Number(r.n);
         else civilianTotal = Number(r.n);
       }
-      if (civilianTotal === 0 && militaryTotal === 0) return null; // empty table → honest empty state
-      return { byDisposition, byAgency, civilianTotal, militaryTotal };
+      return { congress, byDisposition, byAgency, civilianTotal, militaryTotal };
     } catch (e) {
       console.error(`[nominations] getNominationsSummary failed: ${(e as Error).message}`);
       return null;
@@ -5385,12 +5401,13 @@ export interface NominationsPage {
 // (injection-safe); `disposition` is enum-validated, `agency` is a plain equality
 // filter. No MAX_FEED_PAGES clamp — 830 civilian rows have no deep-OFFSET tail
 // problem. try/catch → an empty page so a bad read degrades, never 500s.
+// HO 839: one Congress's, as the summary (the congress is in the options, so in the key).
 export const getNominations = unstable_cache(
-  async (opts: { agency?: string; disposition?: string; committee?: string; page?: number }): Promise<NominationsPage> => {
+  async (opts: { congress: number; agency?: string; disposition?: string; committee?: string; page?: number }): Promise<NominationsPage> => {
     const page = Math.max(1, Math.floor(opts.page ?? 1));
     const pageSize = NOMINATIONS_PAGE_SIZE;
-    const where = ["is_military = 0"];
-    const args: (string | number)[] = [];
+    const where = ["is_military = 0", "congress = ?"];
+    const args: (string | number)[] = [opts.congress];
     if (opts.agency) {
       where.push("organization = ?");
       args.push(opts.agency);
@@ -5447,15 +5464,16 @@ export interface CommitteeNominations {
   total: number;
   confirmed: number;
 }
+// HO 839: one Congress's, as the /nominations summary (the congress is an argument, so in the key).
 export const getCommitteeNominations = unstable_cache(
-  async (systemCode: string, limit: number): Promise<CommitteeNominations> => {
+  async (systemCode: string, limit: number, congress: number): Promise<CommitteeNominations> => {
     try {
       const db = getDb();
       const agg = (
         await db.execute({
           sql: `SELECT COUNT(*) AS total, SUM(disposition = 'confirmed') AS confirmed
-                FROM nominations WHERE is_military = 0 AND committee_system_code = ?`,
-          args: [systemCode],
+                FROM nominations WHERE is_military = 0 AND committee_system_code = ? AND congress = ?`,
+          args: [systemCode, congress],
         })
       ).rows[0];
       const total = Number(agg?.total ?? 0);
@@ -5465,10 +5483,10 @@ export const getCommitteeNominations = unstable_cache(
         sql: `SELECT id, citation, description, organization, disposition,
                      latest_action_text, latest_action_date, received_date
               FROM nominations
-              WHERE is_military = 0 AND committee_system_code = ?
+              WHERE is_military = 0 AND committee_system_code = ? AND congress = ?
               ORDER BY COALESCE(latest_action_date, received_date) DESC, pn_number DESC
               LIMIT ?`,
-        args: [systemCode, limit],
+        args: [systemCode, congress, limit],
       });
       const rows = rs.rows.map((r) => ({
         id: String(r.id),
@@ -5709,6 +5727,9 @@ export type PolarizationBand = {
   senate: PolarizationRail;
   scored: number;
   unscored: number;
+  // HO 839: the scores' Congress the rows are (SCORES_CONGRESS_SQL); the chart's
+  // gap label, line end and dot year come from it. Null on an empty table.
+  congress: number | null;
 };
 
 function rail(dem: number[], rep: number[]): PolarizationRail {
@@ -5727,7 +5748,8 @@ export const getPolarizationBand = unstable_cache(
     // condition the ideology strip takes, so the strip's ticks keep agreeing
     // with these rails.
     const res = await db.execute(
-      `SELECT mi.chamber AS chamber, mi.nominate_dim1 AS dim1, m.party AS party
+      `SELECT mi.chamber AS chamber, mi.nominate_dim1 AS dim1, m.party AS party,
+              mi.congress AS congress
          FROM member_ideology mi
          JOIN members m ON m.bioguide_id = mi.bioguide_id
         WHERE ${SCORES_CONGRESS_SQL}`,
@@ -5754,11 +5776,13 @@ export const getPolarizationBand = unstable_cache(
       else (house ? houseRep : senateRep).push(v);
     }
 
+    const congressRaw = res.rows[0]?.congress;
     return {
       house: rail(houseDem, houseRep),
       senate: rail(senateDem, senateRep),
       scored,
       unscored,
+      congress: congressRaw == null ? null : Number(congressRaw),
     };
   },
   ["getPolarizationBand"],
