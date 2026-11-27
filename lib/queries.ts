@@ -5641,13 +5641,18 @@ export const getMemberIdeology = unstable_cache(
     // for party (Voteview's numeric party_code isn't stored). Filters on the
     // member's OWN chamber value (member_ideology.chamber) so it's one source.
     // ~535-row scan — no INDEXED BY, no new index (small-table judgment).
+    // HO 839 (838-ff-go.md ruling 4): only the scores' Congress
+    // (SCORES_CONGRESS_SQL, lib/congress.ts), as the strip and the band read
+    // since HO 838, so these medians keep matching the band's rails once the
+    // next Congress's scores land and a departed member's row stays on the old one.
     const context = await db.execute({
       sql: `SELECT mi.nominate_dim1 AS dim1, m.party AS party
             FROM member_ideology mi
             JOIN members m ON m.bioguide_id = mi.bioguide_id
             WHERE mi.chamber = ?
               AND mi.nominate_dim1 IS NOT NULL
-              AND m.party IN ('D','R')`,
+              AND m.party IN ('D','R')
+              AND ${SCORES_CONGRESS_SQL}`,
       args: [chamber],
     });
     const dem: number[] = [];
