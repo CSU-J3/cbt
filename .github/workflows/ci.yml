@@ -88,5 +88,15 @@ jobs:
       - name: Stage of a law
         run: npm run check:stage-law
 
+      # HO 838 — the 120th-Congress rollover's pre-built parts, proven by
+      # setting the clock: the laws chart's pair, the vote syncs' 119/2 tail,
+      # the resident commissioner's four-year term, the hub's election cell and
+      # the ideology strip's Congress filter. Each case also runs against the
+      # code it replaced and must fail there. No network, no store, no secret
+      # (case 5's SQL runs on an in-memory SQLite), so it rides the secretless
+      # PR path.
+      - name: Rollover (120th)
+        run: npm run check:rollover
+
       - name: Build
         run: npm run build

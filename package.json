@@ -69,7 +69,8 @@
     "check:design-citations": "tsx scripts/check-design-citations.ts",
     "check:control-close": "tsx scripts/check-control-close.ts",
     "check:stage-law": "tsx scripts/check-stage-law.ts",
-    "check:bills-plans": "tsx scripts/check-bills-plans.ts"
+    "check:bills-plans": "tsx scripts/check-bills-plans.ts",
+    "check:rollover": "tsx scripts/check-rollover.ts"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",
