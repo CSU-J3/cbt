@@ -2,7 +2,12 @@ import { unstable_cache } from "next/cache";
 import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
 import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
-import { getCurrentCongress } from "./congress";
+import {
+  enactedLawsSource,
+  getCurrentCongress,
+  lawsComparisonPair,
+  weekOfSession,
+} from "./congress";
 import { getDb } from "./db";
 import { readIncumbentOnBallot, type IncumbentOnBallotReading } from "./incumbent-on-ballot";
 import { readRaceResult, type RaceResultReading } from "./race-result";
@@ -1051,56 +1056,78 @@ export const getBillsByMonth = unstable_cache(
 // below it. idx_bills_trends_month stays — still used by getBillsByMonth.
 
 export type LawsByWeekRow = {
-  congress: 118 | 119;
+  congress: number;
   weekOfSession: number; // 0 = first week after the Jan 3 start
   cumulativeLaws: number; // running total at end of that week
 };
 
-// Congress start dates (Jan 3 of the odd year). Used to bucket an enacted
-// date into a week-of-session.
-const CONGRESS_START: Record<number, string> = {
-  118: "2023-01-03",
-  119: "2025-01-03",
+// HO 838: the reader names the two Congresses it compared, so the chart never
+// infers them.
+export type LawsEnactedComparisonData = {
+  current: number;
+  previous: number;
+  rows: LawsByWeekRow[];
 };
-const WEEK_MS = 7 * 86_400_000;
 
-// Cumulative enacted-law count by week of session, 118th vs 119th (HO 101) —
-// backs the LawsEnactedComparison chart on /reports. The 118th comes from
-// `historical_laws` (static backfill); the 119th from `bills` where
-// stage='enacted' (kept fresh by the sync cron, every 6h). One row per session week
-// from 0 to the last week with data, carrying the running total forward
-// across quiet weeks, so a chart can plot a continuous cumulative line. The
-// week math is done in TypeScript rather than SQL — the row counts are tiny
-// (~274 + ~95) and a libSQL window-function CTE buys nothing here. Tagged
-// "bills" so the sync cron's revalidateTag refreshes the 119th line.
-export const getLawsEnactedBySessionWeek = unstable_cache(
-  async (): Promise<LawsByWeekRow[]> => {
+// One Congress's enacted dates, from the table that holds it
+// (enactedLawsSource, lib/congress.ts): `historical_laws` for the 118th and
+// earlier, `bills` for the 119th on.
+async function enactedLawDates(
+  db: ReturnType<typeof getDb>,
+  congress: number,
+): Promise<Array<Record<string, unknown>>> {
+  if (enactedLawsSource(congress) === "historical_laws") {
+    const rs = await db.execute({
+      sql: "SELECT enacted_date AS d FROM historical_laws WHERE congress = ?",
+      args: [congress],
+    });
+    return rs.rows as Array<Record<string, unknown>>;
+  }
+  // HO 335: force the partial idx_bills_enacted (congress, latest_action_date)
+  // WHERE stage='enacted'. Unhinted this was a full SCAN of 16k for ~95 rows
+  // (the audit's worst plan); the partial makes it a covering congress lookup.
+  const rs = await db.execute({
+    sql: `SELECT latest_action_date AS d FROM bills INDEXED BY idx_bills_enacted
+            WHERE congress = ? AND stage = 'enacted'
+              AND latest_action_date IS NOT NULL`,
+    args: [congress],
+  });
+  return rs.rows as Array<Record<string, unknown>>;
+}
+
+// Cumulative enacted-law count by week of session, the current Congress
+// against the previous one (HO 101; HO 838 made the pair follow
+// getCurrentCongress, as HO 712 ruled). It backs the LawsEnactedComparison
+// chart on /reports. Each series comes from its own table: `historical_laws`
+// (static backfill) for the 118th and earlier, `bills` where stage='enacted'
+// (kept fresh by the sync cron, every 6h) for the 119th on. One row per
+// session week from 0 to the last week with data, carrying the running total
+// forward across quiet weeks, so a chart can plot a continuous cumulative
+// line. The week math is done in TypeScript rather than SQL — the row counts
+// are tiny (~274 + ~150) and a libSQL window-function CTE buys nothing here.
+// Tagged "bills" so the sync cron's revalidateTag refreshes the current line.
+//
+// The current Congress is the cached function's argument, so it is part of
+// the cache key: an entry made on Jan 2 (119 against 118) can't answer on
+// Jan 3 (120 against 119).
+const getLawsEnactedBySessionWeekFor = unstable_cache(
+  async (current: number): Promise<LawsEnactedComparisonData> => {
     const db = getDb();
-    const h118 = await db.execute(
-      "SELECT enacted_date AS d FROM historical_laws WHERE congress = 118",
-    );
-    // HO 335: force the partial idx_bills_enacted (congress, latest_action_date)
-    // WHERE stage='enacted'. Unhinted this was a full SCAN of 16k for ~95 rows
-    // (the audit's worst plan); the partial makes it a covering congress lookup.
-    const h119 = await db.execute(
-      `SELECT latest_action_date AS d FROM bills INDEXED BY idx_bills_enacted
-         WHERE congress = 119 AND stage = 'enacted'
-           AND latest_action_date IS NOT NULL`,
-    );
+    const previous = current - 1;
+    const prevRows = await enactedLawDates(db, previous);
+    const curRows = await enactedLawDates(db, current);
 
     const series = (
       rows: Array<Record<string, unknown>>,
-      congress: 118 | 119,
+      congress: number,
     ): LawsByWeekRow[] => {
-      const start = Date.parse(`${CONGRESS_START[congress]}T00:00:00Z`);
       const perWeek = new Map<number, number>();
       let maxWeek = -1;
       for (const r of rows) {
         const d = r.d as string | null;
         if (!d) continue;
-        const t = Date.parse(`${d.slice(0, 10)}T00:00:00Z`);
-        if (Number.isNaN(t)) continue;
-        const w = Math.max(0, Math.floor((t - start) / WEEK_MS));
+        const w = weekOfSession(d, congress);
+        if (w === null) continue;
         perWeek.set(w, (perWeek.get(w) ?? 0) + 1);
         if (w > maxWeek) maxWeek = w;
       }
@@ -1113,14 +1140,21 @@ export const getLawsEnactedBySessionWeek = unstable_cache(
       return out;
     };
 
-    return [
-      ...series(h118.rows as Array<Record<string, unknown>>, 118),
-      ...series(h119.rows as Array<Record<string, unknown>>, 119),
-    ];
+    return {
+      current,
+      previous,
+      rows: [...series(prevRows, previous), ...series(curRows, current)],
+    };
   },
   ["getLawsEnactedBySessionWeek"],
   { revalidate: 86400, tags: ["bills"] },
 );
+
+export function getLawsEnactedBySessionWeek(
+  now: Date = new Date(),
+): Promise<LawsEnactedComparisonData> {
+  return getLawsEnactedBySessionWeekFor(lawsComparisonPair(now).current);
+}
 
 // RECORD (HO 667): `getDashboardLead` lived here — it read the cron-generated
 // 3-sentence lead from dashboard_state under key 'weekly_lead'. It was orphaned

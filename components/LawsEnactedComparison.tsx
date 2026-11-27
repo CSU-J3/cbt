@@ -1,10 +1,13 @@
-// Cumulative laws enacted, 119th vs 118th Congress, by week of session
-// (HO 101). The honest answer to "is this Congress keeping pace?" — the 118th
-// runs the full term as a muted reference curve, the 119th is the live amber
-// curve up to today. First chart on /reports. Hand-rolled SVG, sharing the
-// SvgGridY / SvgLegend primitives with BillsTimeSeries and the sponsor scatter.
+// Cumulative laws enacted, the current Congress against the previous one, by
+// week of session (HO 101; HO 838 made the pair follow getCurrentCongress, as
+// HO 712 ruled). The honest answer to "is this Congress keeping pace?" — the
+// previous Congress runs the full term as a muted reference curve, the current
+// one is the live amber curve up to today. First chart on /reports.
+// Hand-rolled SVG, sharing the SvgGridY / SvgLegend primitives with
+// BillsTimeSeries and the sponsor scatter.
 import { SvgGridY } from "@/components/svg/SvgGridY";
 import { SvgLegend } from "@/components/svg/SvgLegend";
+import { congressTermDates, ordinal } from "@/lib/congress";
 import { getLawsEnactedBySessionWeek, type LawsByWeekRow } from "@/lib/queries";
 
 const VB_WIDTH = 1000;
@@ -12,15 +15,19 @@ const CHART_HEIGHT = 300;
 const PAD = { top: 30, right: 20, bottom: 44, left: 52 };
 const FULL_TERM_WEEKS = 104; // a 2-year Congress, Jan 3 → Jan 3
 const WEEK_MS = 7 * 86_400_000;
-const C118 = "var(--text-muted)";
-const C119 = "var(--accent-amber-bright)";
+const C_PREV = "var(--text-muted)";
+const C_CUR = "var(--accent-amber-bright)";
 
 export async function LawsEnactedComparison() {
-  const rows = await getLawsEnactedBySessionWeek();
-  const s118 = rows.filter((r) => r.congress === 118);
-  const s119 = rows.filter((r) => r.congress === 119);
+  // The reader names the pair it compared (HO 838); the chart never infers it.
+  const { current, previous, rows } = await getLawsEnactedBySessionWeek();
+  const sPrev = rows.filter((r) => r.congress === previous);
+  const sCur = rows.filter((r) => r.congress === current);
 
-  if (s118.length === 0 || s119.length === 0) {
+  // With no reference curve there's nothing to pace against. A current
+  // Congress with no laws yet (Jan 3 until its first enactment) still draws:
+  // the reference curve, the today-marker and "no laws yet" (HO 838).
+  if (sPrev.length === 0) {
     return (
       <p
         className="py-8 text-center text-[length:var(--fs-13)]"
@@ -48,23 +55,27 @@ export async function LawsEnactedComparison() {
       )
       .join(" ");
 
-  // 119th "today" — weeks since its Jan 3 2025 start. The marker tracks the
-  // calendar, independent of when the last law happened to be enacted.
+  // The current Congress's "today": weeks since its Jan 3 start. The marker
+  // tracks the calendar, independent of when the last law happened to be
+  // enacted.
   const todayWeek = Math.min(
     maxWeek,
     Math.max(
       0,
       Math.floor(
-        (Date.now() - Date.parse("2025-01-03T00:00:00Z")) / WEEK_MS,
+        (Date.now() - congressTermDates(current).start.getTime()) / WEEK_MS,
       ),
     ),
   );
-  const last119 = s119[s119.length - 1]!;
-  const laws119 = last119.cumulativeLaws;
-  // 118th's cumulative total at the same point in its term.
-  const at118 =
-    [...s118].reverse().find((r) => r.weekOfSession <= todayWeek)
+  const lastCur = sCur.length > 0 ? sCur[sCur.length - 1]! : null;
+  // The previous Congress's cumulative total at the same point in its term.
+  const atPrev =
+    [...sPrev].reverse().find((r) => r.weekOfSession <= todayWeek)
       ?.cumulativeLaws ?? 0;
+
+  // The previous Congress's years for the legend, "2023–25".
+  const prevTerm = congressTermDates(previous);
+  const prevYears = `${prevTerm.start.getUTCFullYear()}–${String(prevTerm.end.getUTCFullYear()).slice(2)}`;
 
   // x-axis labels every 13 weeks (≈ quarterly), with the final week pinned.
   const weekTicks: number[] = [];
@@ -76,6 +87,8 @@ export async function LawsEnactedComparison() {
   const anchor = labelOnLeft ? "end" : "start";
   const labelDx = labelOnLeft ? -6 : 6;
 
+  // Each marker line's leading words are one text node, so the server HTML
+  // keeps the node boundaries the literal "119th · wk " had before HO 838.
   return (
     <div className="w-full overflow-x-auto">
       <svg
@@ -83,7 +96,7 @@ export async function LawsEnactedComparison() {
         preserveAspectRatio="xMidYMid meet"
         className="h-auto w-full"
         role="img"
-        aria-label="Cumulative laws enacted, 119th Congress versus 118th, by week of session"
+        aria-label={`Cumulative laws enacted, ${ordinal(current)} Congress versus ${ordinal(previous)}, by week of session`}
       >
         <SvgGridY
           padLeft={PAD.left}
@@ -135,10 +148,10 @@ export async function LawsEnactedComparison() {
           y={PAD.top - 16}
           textAnchor={anchor}
           fontSize="11"
-          fill={C119}
+          fill={C_CUR}
           fontFamily="var(--font-mono)"
         >
-          119th · wk {todayWeek} · {laws119.toLocaleString()} laws
+          {`${ordinal(current)} · wk `}{todayWeek} · {lastCur ? lastCur.cumulativeLaws.toLocaleString() : "no laws yet"}{lastCur ? " laws" : null}
         </text>
         <text
           x={markerX + labelDx}
@@ -148,37 +161,43 @@ export async function LawsEnactedComparison() {
           fill="var(--text-muted)"
           fontFamily="var(--font-mono)"
         >
-          118th by wk {todayWeek}: {at118.toLocaleString()}
+          {`${ordinal(previous)} by wk `}{todayWeek}: {atPrev.toLocaleString()}
         </text>
 
-        {/* 118th — full term, muted reference */}
+        {/* previous Congress — full term, muted reference */}
         <polyline
           fill="none"
-          stroke={C118}
+          stroke={C_PREV}
           strokeWidth={2}
           strokeLinejoin="round"
-          points={points(s118)}
+          points={points(sPrev)}
         />
-        {/* 119th — partial, the live curve */}
-        <polyline
-          fill="none"
-          stroke={C119}
-          strokeWidth={2.5}
-          strokeLinejoin="round"
-          points={points(s119)}
-        />
-        <circle
-          cx={xScale(last119.weekOfSession)}
-          cy={yScale(last119.cumulativeLaws)}
-          r={4}
-          fill={C119}
-        />
+        {/* current Congress — partial, the live curve (none before its
+            first law). Two conditionals, not a fragment, so today's element
+            tree is the one the chart had before HO 838. */}
+        {lastCur ? (
+          <polyline
+            fill="none"
+            stroke={C_CUR}
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            points={points(sCur)}
+          />
+        ) : null}
+        {lastCur ? (
+          <circle
+            cx={xScale(lastCur.weekOfSession)}
+            cy={yScale(lastCur.cumulativeLaws)}
+            r={4}
+            fill={C_CUR}
+          />
+        ) : null}
       </svg>
 
       <SvgLegend
         items={[
-          { label: "119th (current)", color: C119 },
-          { label: "118th (2023–25)", color: C118 },
+          { label: `${ordinal(current)} (current)`, color: C_CUR },
+          { label: `${ordinal(previous)} (${prevYears})`, color: C_PREV },
         ]}
         trailing="cumulative laws enacted"
       />

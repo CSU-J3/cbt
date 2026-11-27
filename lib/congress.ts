@@ -29,6 +29,37 @@ export function congressTermDates(n: number): { start: Date; end: Date } {
   };
 }
 
+// HO 838: the laws-enacted chart's pair (HO 712's product call). It compares
+// the current Congress with the one before it, so at 00:00Z on Jan 3 of an odd
+// year it moves on by one.
+export function lawsComparisonPair(date: Date = new Date()): {
+  current: number;
+  previous: number;
+} {
+  const current = getCurrentCongress(date);
+  return { current, previous: current - 1 };
+}
+
+// HO 838: where a Congress's enacted laws are stored. `historical_laws` is the
+// static backfill and holds the 118th and earlier. `bills` holds every Congress
+// the sync has fetched, from the 119th on, with stage 'enacted' for a law.
+export function enactedLawsSource(congress: number): "bills" | "historical_laws" {
+  return congress >= 119 ? "bills" : "historical_laws";
+}
+
+const WEEK_MS = 7 * 86_400_000;
+
+// HO 838: the week of session a calendar day falls in, counted from the
+// Congress's Jan 3 start (0 = its first seven days). A day before the start
+// counts as week 0, as the laws reader always counted it. An unparseable day
+// gives null.
+export function weekOfSession(day: string, congress: number): number | null {
+  const t = Date.parse(`${day.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(t)) return null;
+  const start = congressTermDates(congress).start.getTime();
+  return Math.max(0, Math.floor((t - start) / WEEK_MS));
+}
+
 const TERM_MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
