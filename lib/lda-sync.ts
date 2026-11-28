@@ -12,6 +12,11 @@
 //  - DRF paging {count,next,previous,results}; page_size capped at 25 server
 //    side. `ordering=dt_posted` sorts ascending; `filing_dt_posted_after=
 //    YYYY-MM-DD` filters server-side.
+//  - HO 840's probe (docs/handoffs/840-artifacts/step0-840.md, claims 5 and 6):
+//    `filing_dt_posted_after` also takes a timestamp and filters to the second,
+//    inclusive. With a `Z` or an offset it's the instant; WITHOUT one it's read as
+//    Eastern wall time, and a bare date as Eastern midnight. The page order is
+//    stable across reads, and `ordering` takes no uuid tiebreak (dropped silently).
 //  - Bill-number join to `bills` was ~97% where a number is present; the
 //    extractor (lib/bill-id-extract.ts) produces the matching id format.
 //
@@ -25,6 +30,18 @@
 // is a delete-and-rebuild under three PKs, so a re-touched filing resets cleanly
 // (idempotent, never additive). The full ~108k-filing job at ~1.7s/page is
 // inherently ~2h; if it stalls, the next run picks up from the DB frontier.
+//
+// HO 840: the request starts at the frontier's own instant less one minute
+// (ldaPostedAfter), not at the day before it. Until HO 840 it re-listed the whole
+// boundary day and the day before, and on a filing deadline those hold thousands:
+// from Nov 18 to 27, 2026, every tick spent its 280 s re-reading 2026 Q3's 5,574
+// stored Oct 19-20 filings and stopped before reaching a new one, so Q4 was never
+// reached. A filing at the frontier's own second is skipped only if its uuid is
+// stored there (ldaAlreadyStored): the deadline can cut a page between two
+// filings sharing a second, and the old `dtMs <= skipMs` dropped the second one
+// for good (2026 Q3's 11:23:18 pair, STEP 0). A caught-up combo whose filtered
+// count runs past one page is passed over after its first page, when that count
+// equals the stored rows at or after the same instant (guard 5: equal, never less).
 import { extractBillIds } from "./bill-id-extract";
 import { getCurrentCongress, lobbyingFilingYears } from "./congress";
 import { getDb } from "./db";
@@ -163,6 +180,35 @@ function ms(dt: string | null): number {
   return Number.isNaN(t) ? EPOCH_MS : t;
 }
 
+// HO 840: how far behind the stored frontier the request starts.
+const POSTED_AFTER_OVERLAP_MS = 60_000;
+
+// HO 840 (STEP 0 claim 5): the request's `filing_dt_posted_after`, from a combo's stored MAX(dt_posted): that instant
+// less one minute, to the second, in UTC WITH its `Z`. The `Z` is load-bearing: lda.gov reads a timestamp without one
+// as Eastern wall time, four or five hours later than the UTC it names. Null when nothing is stored, or the frontier
+// doesn't parse, which lists the combo from its start, as the old one-day-back date did in both cases.
+export function ldaPostedAfter(maxDt: string | null): string | null {
+  if (maxDt == null) return null;
+  const t = Date.parse(maxDt);
+  if (Number.isNaN(t)) return null;
+  return new Date(t - POSTED_AFTER_OVERLAP_MS).toISOString().replace(/\.\d+Z$/, "Z");
+}
+
+// HO 840: whether a listed filing is already stored, given the combo's frontier (`skipMs`, its stored MAX(dt_posted))
+// and the uuids stored at that very second. Before the frontier it is, since the ingested set is a contiguous
+// ascending prefix; after it, it isn't; at it, only if its uuid is. Until HO 840 every filing at the frontier's second
+// read as stored, so one sharing that second with the last stored filing, cut onto the next page by the deadline,
+// was never ingested. An unparseable dt_posted (EPOCH_MS) is skipped, as before.
+export function ldaAlreadyStored(
+  dtMs: number,
+  skipMs: number,
+  uuid: string,
+  atFrontier: ReadonlySet<string>,
+): boolean {
+  if (dtMs !== skipMs) return dtMs < skipMs;
+  return skipMs === EPOCH_MS || atFrontier.has(uuid);
+}
+
 interface FetchOpts {
   maxRetries?: number;
   onError?: () => void;
@@ -259,12 +305,13 @@ async function loadValidBillIds(db: Db, congress: number): Promise<Set<string>> 
 }
 
 // The DB-derived resume frontier for one (year, type): how many are ingested and
-// the max dt_posted among them. Fast with idx_lda_filings_year_type_dt.
+// the max dt_posted among them. Fast with idx_lda_filings_year_type_dt. HO 840:
+// and the uuids stored at that max's own second (ldaAlreadyStored), usually one.
 async function comboState(
   db: Db,
   year: number,
   type: string,
-): Promise<{ count: number; maxDt: string | null }> {
+): Promise<{ count: number; maxDt: string | null; atFrontier: Set<string> }> {
   const rs = await dbRetry("comboState", () =>
     db.execute({
       sql: "SELECT COUNT(*) AS n, MAX(dt_posted) AS mx FROM lda_filings WHERE filing_year = ? AND filing_type = ?",
@@ -272,7 +319,34 @@ async function comboState(
     }),
   );
   const row = rs.rows[0];
-  return { count: Number(row?.n ?? 0), maxDt: (row?.mx as string | null) ?? null };
+  const maxDt = (row?.mx as string | null) ?? null;
+  const atFrontier = new Set<string>();
+  if (maxDt != null) {
+    const at = await dbRetry("comboState", () =>
+      db.execute({
+        sql: "SELECT filing_uuid FROM lda_filings WHERE filing_year = ? AND filing_type = ? AND dt_posted = ?",
+        args: [year, type, maxDt],
+      }),
+    );
+    for (const r of at.rows) atFrontier.add(String(r.filing_uuid));
+  }
+  return { count: Number(row?.n ?? 0), maxDt, atFrontier };
+}
+
+// HO 840: a combo's stored rows at or after an instant, to set against the API's first-page count under a
+// `filing_dt_posted_after` of that instant: like with like, since both are filtered there, inclusive (STEP 0 #6).
+// dt_posted carries its own offset, so the string bound only narrows the index range, a day early, and
+// julianday() compares the instants.
+async function storedSince(db: Db, year: number, type: string, instant: string): Promise<number> {
+  const coarse = new Date(Date.parse(instant) - DAY_MS).toISOString().slice(0, 10);
+  const rs = await dbRetry("storedSince", () =>
+    db.execute({
+      sql: `SELECT COUNT(*) AS n FROM lda_filings
+             WHERE filing_year = ? AND filing_type = ? AND dt_posted >= ? AND julianday(dt_posted) >= julianday(?)`,
+      args: [year, type, coarse, instant],
+    }),
+  );
+  return Number(rs.rows[0]?.n ?? 0);
 }
 
 type Stmt = { sql: string; args: (string | number | null)[] };
@@ -496,16 +570,14 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
   outer: for (const year of years) {
     for (const type of FILING_TYPES) {
       // Resume frontier for this combo, derived from the DB.
-      const { count: dbCount, maxDt } = await comboState(db, year, type);
-      const skipMs = ms(maxDt); // ingest only filings strictly newer than this
-      // Server-side date filter set one day BEFORE the frontier so the boundary
-      // day is re-returned (dt_posted is second-granular but the filter is
-      // date-granular); client-side `dtMs <= skipMs` then dedups it. Omitted when
-      // nothing is ingested yet (full scan).
-      const afterDate =
-        maxDt != null
-          ? new Date(skipMs - DAY_MS).toISOString().slice(0, 10)
-          : null;
+      const { count: dbCount, maxDt, atFrontier } = await comboState(db, year, type);
+      const skipMs = ms(maxDt); // the frontier; ldaAlreadyStored decides what's stored
+      // HO 840: the server-side filter starts at the frontier's own instant less a
+      // minute (ldaPostedAfter), to the second, so a busy boundary day isn't
+      // re-listed; ldaAlreadyStored then dedups the overlap. Until HO 840 it was the
+      // day BEFORE the frontier (HO 434 read the filter as date-granular). Omitted
+      // when nothing is ingested yet (full scan).
+      const postedAfter = ldaPostedAfter(maxDt);
 
       const params = new URLSearchParams({
         filing_year: String(year),
@@ -513,7 +585,7 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
         ordering: "dt_posted",
         page_size: "25",
       });
-      if (afterDate) params.set("filing_dt_posted_after", afterDate);
+      if (postedAfter) params.set("filing_dt_posted_after", postedAfter);
       let url: string | null = `${BASE}/filings/?${params.toString()}`;
 
       // First page tells us the API total for this combo (validation: presence
@@ -521,6 +593,7 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
       let apiTotal = -1;
       let comboFilings = 0;
       let pagesInCombo = 0;
+      let settled: string | null = null;
 
       while (url) {
         if (deadlineMs && Date.now() >= deadlineMs) {
@@ -543,7 +616,7 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
         if (apiTotal < 0) apiTotal = page.count;
         const isTail = tail !== undefined && year === tail.year;
         for (const f of page.results) {
-          if (ms(f.dt_posted) <= skipMs) continue; // already ingested (dedup)
+          if (ldaAlreadyStored(ms(f.dt_posted), skipMs, f.filing_uuid, atFrontier)) continue; // dedup
           const { stmts, activities, billLinks } = buildFilingStatements(
             f,
             isTail && tailValidBillIds ? tailValidBillIds : validBillIds,
@@ -580,6 +653,17 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
           nextCooldownAt = filingsUpserted + cooldownEveryFilings;
         }
         url = page.next;
+        // HO 840: a caught-up combo is passed over after its first page. When the API's count under this
+        // request's filter equals the stored rows at or after the same instant, the later pages hold nothing new.
+        // Read only when there IS a next page, so a one-page combo costs nothing more; never taken when the
+        // stored count is below the API's (guard 5), or above it.
+        if (url && pagesInCombo === 1 && postedAfter) {
+          const since = await storedSince(db, year, type, postedAfter);
+          if (since === apiTotal) {
+            settled = `settled after page 1 (stored since ${postedAfter} ${since} = api ${apiTotal})`;
+            url = null;
+          }
+        }
         if (url) await sleep(pageDelayMs);
       }
       await flush(); // durable at combo boundary
@@ -591,7 +675,7 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
           : shortBy > 0
             ? `resume (db ${dbCount} < api ${apiTotal}, short ${shortBy})`
             : `complete (db ${dbCount} >= api ${apiTotal})`;
-      const line = `${year} ${type}: ${state}; from=${afterDate ?? "start"}; +${comboFilings} ingested`;
+      const line = `${year} ${type}: ${state}; from=${postedAfter ?? "start"}; +${comboFilings} ingested${settled ? `; ${settled}` : ""}`;
       combos.push(line);
       if (tail && year === tail.year) tail.combos.push(line);
       console.log(`[lda] ${line}`);
