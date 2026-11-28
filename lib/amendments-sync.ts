@@ -24,9 +24,22 @@
 // cleanly (the inclusive fromDateTime boundary re-returns the frontier day; the
 // upsert absorbs it). A deadline backstop stops cleanly; the next run re-derives
 // MAX(update_date) and continues.
-import { getCurrentCongress } from "./congress";
+//
+// HO 840: for 7 days after a switch (amendmentsTail), the run also lists the previous
+// Congress, /amendment/{current − 1}, after the current listing and inside the same
+// deadline, from that Congress's own frontier, so a 119th amendment acted on in the
+// session's last days and indexed after Jan 3 is stored. The frontier is per congress
+// (MAX(update_date) WHERE congress = ?), as HO 839 made the nominations sync's: one
+// MAX over the whole table would move with every row the tail writes and skip the
+// current Congress's updates behind it. Today every row is the 119th's, so it reads
+// the value the whole-table form read. The tail's failure doesn't fail the run. The
+// tail stops at its first failed detail fetch: past it, a later item would lift the
+// previous Congress's MAX(update_date) over the failed one, and --repair enumerates
+// only the current Congress, so it would be lost for good. Stopping leaves the frontier
+// at or below it, and the next run lists it again.
+import { getCurrentCongress, previousCongressTail } from "./congress";
 import { getDb } from "./db";
-import { fetchError } from "./redact";
+import { fetchError, redactSecrets } from "./redact";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
@@ -87,6 +100,30 @@ export interface AmendmentsSyncResult {
   deadlineHit: boolean;
   frontier: string;
   apiTotal: number;
+  // HO 840: the previous Congress's tail, present only in its 7-day window.
+  tail?: AmendmentsTailResult;
+}
+
+// HO 840: one run's tail of the previous Congress.
+export interface AmendmentsTailResult {
+  congress: number;
+  frontier: string;
+  // Rows written: on a throw, less the batch a failed flush never wrote.
+  upserted: number;
+  listPages: number;
+  detailErrors: number;
+  deadlineHit: boolean;
+  apiTotal: number;
+  // A list page or a flush that threw, or the first failed detail, where the tail stopped; redacted. The tail's
+  // failure doesn't fail the run.
+  error: string | null;
+}
+
+// HO 840: the tail's window, the nominations sync's 7 days. { congress: 119, session: 2 } from
+// 2027-01-03T00:00:00Z through 2027-01-09T23:59:59.999Z, null outside it (check:rollover case 12).
+export const AMENDMENTS_TAIL_DAYS = 7;
+export function amendmentsTail(now: Date = new Date()): { congress: number; session: 2 } | null {
+  return previousCongressTail(now, AMENDMENTS_TAIL_DAYS);
 }
 
 export interface SyncAmendmentsOptions {
@@ -237,10 +274,16 @@ function buildAmendmentStatement(
   };
 }
 
-async function currentFrontier(db: Db, floor: string): Promise<string> {
-  const rs = await dbRetry("frontier", () => db.execute("SELECT MAX(update_date) AS mx FROM amendments"));
+// HO 840: per congress (see the header). Until HO 840, MAX(update_date) over the whole table.
+async function currentFrontier(db: Db, floor: string, congress: number): Promise<string> {
+  const rs = await dbRetry("frontier", () =>
+    db.execute({ sql: "SELECT MAX(update_date) AS mx FROM amendments WHERE congress = ?", args: [congress] }),
+  );
   return (rs.rows[0]?.mx as string | null) ?? floor;
 }
+
+// A Congress's convening floor: the 119th convened 2025-01-03, derived from the congress so it advances.
+const floorOf = (congress: number) => `${2025 + (congress - 119) * 2}-01-03T00:00:00Z`;
 
 export async function syncAmendments(opts: SyncAmendmentsOptions = {}): Promise<AmendmentsSyncResult> {
   const { backfill = false, deadlineMs, pageDelayMs = 150, progressEveryPages = 5 } = opts;
@@ -255,92 +298,146 @@ export async function syncAmendments(opts: SyncAmendmentsOptions = {}): Promise<
   const db = getDb();
   const apiKey = process.env.CONGRESS_API_KEY;
   if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
-  const congress = getCurrentCongress();
-  // 119th convenes 2025-01-03; derive from congress so it advances with the cycle.
-  const floor = `${2025 + (congress - 119) * 2}-01-03T00:00:00Z`;
-  const frontier = await currentFrontier(db, floor);
+  // HO 840: one reading of the clock per run, for the listing's congress and the tail's window.
+  const now = new Date();
+  const congress = getCurrentCongress(now);
+  const frontier = await currentFrontier(db, floorOf(congress), congress);
   const ingestedAt = new Date().toISOString();
 
-  let upserted = 0;
-  let listPages = 0;
-  let detailErrors = 0;
   let throttled429 = 0;
-  let deadlineHit = false;
-  let apiTotal = -1;
 
   const pending: Stmt[] = [];
+  // HO 840: a batch leaves the buffer only once it's written, so a tail that throws can count what it wrote.
   const flush = async () => {
     if (!pending.length) return;
-    const chunk = pending.splice(0);
+    const chunk = pending.slice();
     await dbRetry("flush", () => db.batch(chunk, "write"));
+    pending.splice(0, chunk.length);
+  };
+
+  // HO 840: one listing of /amendment/{listCongress} from its frontier to the end of the list or the deadline,
+  // counting into `acc`, which its caller holds, so the counts survive a throw. A list page that throws flushes
+  // what it has and rethrows: for the current Congress that aborts the run (the next run re-derives the frontier
+  // and retries from a durable point), as before; the tail catches it. A failed detail is skipped, as before, unless
+  // `stopOnDetailError` (the tail's): then the walk flushes what precedes it, notes it in `acc.detailStop` and stops.
+  type WalkCounts = {
+    upserted: number;
+    listPages: number;
+    detailErrors: number;
+    deadlineHit: boolean;
+    apiTotal: number;
+    detailStop: string | null;
+  };
+  const walk = async (listCongress: number, from: string, acc: WalkCounts, stopOnDetailError = false): Promise<void> => {
+    let offset = 0;
+    outer: for (;;) {
+      if (deadlineMs && Date.now() >= deadlineMs) {
+        acc.deadlineHit = true;
+        break;
+      }
+      let page: ListResponse;
+      try {
+        page = await fetchJson<ListResponse>(listUrl(listCongress, from, offset, apiKey));
+      } catch (e) {
+        await flush();
+        throw e;
+      }
+      acc.listPages++;
+      if (acc.apiTotal < 0) acc.apiTotal = page.pagination?.count ?? 0;
+      const items = page.amendments ?? [];
+      if (!items.length) break;
+
+      for (const it of items) {
+        if (deadlineMs && Date.now() >= deadlineMs) {
+          acc.deadlineHit = true;
+          await flush();
+          break outer;
+        }
+        let detail: AmendmentDetail | undefined;
+        try {
+          detail = (await fetchJson<{ amendment?: AmendmentDetail }>(detailUrl(it.congress, it.type, it.number, apiKey)))
+            .amendment;
+        } catch (e) {
+          acc.detailErrors++;
+          if ((e as Error).message.includes("429")) throttled429++;
+          console.warn(`[amendments] detail ${it.type}/${it.number} failed: ${(e as Error).message.slice(0, 100)}`);
+          if (stopOnDetailError) {
+            acc.detailStop =
+              `detail ${it.type}/${it.number} failed (${redactSecrets((e as Error).message).slice(0, 160)}); ` +
+              "the tail stopped before it and lists it again next run";
+            await flush();
+            break outer;
+          }
+          if (detailDelayMs) await sleep(detailDelayMs);
+          continue;
+        }
+        if (detail) {
+          pending.push(buildAmendmentStatement(detail, listCongress, ingestedAt, it.updateDate));
+          acc.upserted++;
+        }
+        if (pending.length >= FLUSH_AT) await flush();
+        if (detailDelayMs) await sleep(detailDelayMs);
+      }
+      await flush(); // durable at page boundary
+
+      if (acc.listPages % progressEveryPages === 0) {
+        console.log(
+          `[amendments]   ${listCongress} page ${acc.listPages} (offset ${offset}): +${acc.upserted} upserted, ` +
+            `${acc.detailErrors} detail errors (api total=${acc.apiTotal})`,
+        );
+      }
+      offset += items.length;
+      if (items.length < PAGE_SIZE) break; // last page
+      await sleep(pageDelayMs);
+    }
+    await flush();
   };
 
   console.log(`[amendments] mode=${backfill ? "backfill" : "incremental"} frontier=${frontier}`);
+  const fresh = (): WalkCounts => ({ upserted: 0, listPages: 0, detailErrors: 0, deadlineHit: false, apiTotal: -1, detailStop: null });
+  const cur = fresh();
+  await walk(congress, frontier, cur);
 
-  let offset = 0;
-  outer: for (;;) {
-    if (deadlineMs && Date.now() >= deadlineMs) {
-      deadlineHit = true;
-      break;
-    }
-    let page: ListResponse;
+  // HO 840: for 7 days after a switch, the previous Congress too, after the current listing and inside the same
+  // deadline, from its own frontier, stopping at its first failed detail. The frontier read is inside the try too,
+  // so nothing the tail does can fail the run, and it never moves the current Congress's frontier, which is read
+  // per congress.
+  let tail: AmendmentsTailResult | undefined;
+  const t = amendmentsTail(now);
+  if (t) {
+    const acc = fresh();
+    let tailFrontier = "";
     try {
-      page = await fetchJson<ListResponse>(listUrl(congress, frontier, offset, apiKey));
+      tailFrontier = await currentFrontier(db, floorOf(t.congress), t.congress);
+      console.log(`[amendments] tail congress=${t.congress} frontier=${tailFrontier}`);
+      await walk(t.congress, tailFrontier, acc, true);
+      const { detailStop, ...counts } = acc;
+      tail = { congress: t.congress, frontier: tailFrontier, ...counts, error: detailStop };
     } catch (e) {
-      // A list-page failure (not a single detail) aborts the run; the next run
-      // re-derives the frontier and retries from a durable point.
-      await flush();
-      throw e;
+      // A flush that threw left its batch in `pending`: one statement per amendment, never written.
+      const unwritten = pending.length;
+      pending.length = 0;
+      const { detailStop: _stop, ...counts } = acc;
+      tail = {
+        congress: t.congress,
+        frontier: tailFrontier,
+        ...counts,
+        upserted: counts.upserted - unwritten,
+        error: redactSecrets((e as Error).message),
+      };
     }
-    listPages++;
-    if (apiTotal < 0) apiTotal = page.pagination?.count ?? 0;
-    const items = page.amendments ?? [];
-    if (!items.length) break;
-
-    for (const it of items) {
-      if (deadlineMs && Date.now() >= deadlineMs) {
-        deadlineHit = true;
-        await flush();
-        break outer;
-      }
-      let detail: AmendmentDetail | undefined;
-      try {
-        detail = (await fetchJson<{ amendment?: AmendmentDetail }>(detailUrl(it.congress, it.type, it.number, apiKey)))
-          .amendment;
-      } catch (e) {
-        detailErrors++;
-        if ((e as Error).message.includes("429")) throttled429++;
-        console.warn(`[amendments] detail ${it.type}/${it.number} failed: ${(e as Error).message.slice(0, 100)}`);
-        if (detailDelayMs) await sleep(detailDelayMs);
-        continue;
-      }
-      if (detail) {
-        pending.push(buildAmendmentStatement(detail, congress, ingestedAt, it.updateDate));
-        upserted++;
-      }
-      if (pending.length >= FLUSH_AT) await flush();
-      if (detailDelayMs) await sleep(detailDelayMs);
-    }
-    await flush(); // durable at page boundary
-
-    if (listPages % progressEveryPages === 0) {
-      console.log(`[amendments]   page ${listPages} (offset ${offset}): +${upserted} upserted, ${detailErrors} detail errors (api total=${apiTotal})`);
-    }
-    offset += items.length;
-    if (items.length < PAGE_SIZE) break; // last page
-    await sleep(pageDelayMs);
   }
-  await flush();
 
   return {
     mode: backfill ? "backfill" : "incremental",
-    upserted,
-    listPages,
-    detailErrors,
+    upserted: cur.upserted,
+    listPages: cur.listPages,
+    detailErrors: cur.detailErrors,
     throttled429,
-    deadlineHit,
+    deadlineHit: cur.deadlineHit,
     frontier,
-    apiTotal,
+    apiTotal: cur.apiTotal,
+    ...(tail ? { tail } : {}),
   };
 }
 
