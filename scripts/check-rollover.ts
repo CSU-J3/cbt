@@ -41,6 +41,21 @@
 //      productivityHeading): scores' Congress 119 gives GAP · 119TH, a line
 //      ending at 118, a dot at 2025 and "the 118th"; 120 gives GAP · 120TH,
 //      119, 2027 and "the 119th".
+// HO 840 added:
+//  10. the lobbying request (lib/lda-sync.ts, ldaPostedAfter): a frontier of
+//      2026-10-20T14:32:07Z gives filing_dt_posted_after 2026-10-20T14:31:07Z,
+//      with its Z, since lda.gov reads a timestamp without one as Eastern time
+//      (HO 840 STEP 0, claim 5); the stored frontier's −04:00 form gives the
+//      same instant in UTC; nothing stored gives no filter. And its dedup
+//      (ldaAlreadyStored): a filing at the frontier's own second is new unless
+//      its uuid is stored there (STEP 0's 11:23:18 pair);
+//  11. the bills tail's daily look-back (lib/congress.ts,
+//      billsTailLookBackDue): due once a UTC day inside the 21 days, not again
+//      the same day, and never before the switch or from
+//      2027-01-24T00:00:00Z;
+//  12. the amendments tail (lib/amendments-sync.ts, amendmentsTail):
+//      { 119, 2 } from 2027-01-03T00:00:00Z through 2027-01-09T23:59:59.999Z,
+//      null from 2027-01-10T00:00:00Z and before the switch.
 //
 // THE CONTROLS (HO 838, guard 5: a clock-set case proves a boundary only if
 // the old code fails it). Each case is also run against the code it replaces,
@@ -52,13 +67,18 @@
 // fixed 7-day helper, case 7 against the years derived from the congress
 // alone, case 8 against no tail (the bills sync listed the current Congress
 // only), and case 9 against the constants (GAP · 119TH, 118, 2025 and the
-// 118th heading). The check is red unless every case
+// 118th heading); and (HO 840) case 10 against 4a5c283's day-before date and
+// its `dtMs <= skipMs`, case 11 against no look-back (the tail kept only its
+// own frontier), and case 12 against no tail (the amendments sync listed the
+// current Congress only). The check is red unless every case
 // holds on the code AND fails on its old counterpart, so a control that stops
 // firing turns CI red too.
 //
 //   npm run check:rollover
 import { createClient } from "@libsql/client";
+import { amendmentsTail } from "../lib/amendments-sync";
 import {
+  billsTailLookBackDue,
   billsTailStart,
   congressTermDates,
   cycleYear,
@@ -76,6 +96,7 @@ import {
 } from "../lib/congress";
 import { houseNextElection, houseTermEnd, houseTermEndForState } from "../lib/derive-term";
 import { daysToElection } from "../lib/format";
+import { ldaAlreadyStored, ldaPostedAfter } from "../lib/lda-sync";
 
 const at = (iso: string) => new Date(iso);
 const show = (v: unknown) => (v === undefined ? "undefined" : JSON.stringify(v));
@@ -326,6 +347,75 @@ const oldHeading = (_previous: number) => "Productivity vs. the 118th";
     checks.push({ what: `/reports' heading at ${iso}`, want, got: productivityHeading(previous), old: oldHeading(previous) });
   }
   cases.push({ name: "9. the polarization chart's axis and /reports' heading follow their data's Congress", checks });
+}
+
+// ── The old code HO 840 replaced, from 4a5c283 ──────────────────────────────
+// lib/lda-sync.ts:505-508: the day before the frontier, a date (HO 434 read the filter as date-granular).
+const oldMs = (dt: string | null) => { const t = dt ? Date.parse(dt) : Number.NaN; return Number.isNaN(t) ? 0 : t; };
+const oldPostedAfter = (maxDt: string | null) =>
+  maxDt != null ? new Date(oldMs(maxDt) - 86_400_000).toISOString().slice(0, 10) : null;
+// :546: a filing at or before the frontier's second read as stored, whatever its uuid.
+const oldAlreadyStored = (dtMs: number, skipMs: number, _uuid: string, _at: ReadonlySet<string>) => dtMs <= skipMs;
+// lib/sync.ts: no look-back; the tail kept only its own frontier.
+const oldLookBackDue = (_now: Date, _stampedAt: string | null) => false;
+// lib/amendments-sync.ts:258: no tail; the listing named getCurrentCongress() alone.
+const oldAmendmentsTail = (_now: Date) => null;
+
+// ── 10. The lobbying request and its dedup ──────────────────────────────────
+{
+  const checks: Check[] = [];
+  for (const [what, frontier, want] of [
+    ["a frontier of 2026-10-20T14:32:07Z", "2026-10-20T14:32:07Z", "2026-10-20T14:31:07Z"],
+    ["2026 Q3's stored frontier, in its −04:00 form", "2026-10-20T11:23:18-04:00", "2026-10-20T15:22:18Z"],
+    ["nothing stored", null, null],
+  ] as const) {
+    checks.push({ what: `filing_dt_posted_after for ${what}`, want, got: ldaPostedAfter(frontier), old: oldPostedAfter(frontier) });
+  }
+  // The frontier's own second holds two filings in the API, one of them stored (HO 840 STEP 0, #6).
+  const skip = Date.parse("2026-10-20T11:23:18-04:00");
+  const stored = new Set(["25ab6811-stored"]);
+  for (const [what, dt, uuid, want] of [
+    ["the stored filing at the frontier's second", skip, "25ab6811-stored", true],
+    ["the second filing at that second, not stored", skip, "0b5a4a3b-not-stored", false],
+    ["a filing one second before the frontier", skip - 1000, "earlier", true],
+    ["a filing one second after it", skip + 1000, "later", false],
+  ] as const) {
+    checks.push({ what: `already stored: ${what}`, want, got: ldaAlreadyStored(dt, skip, uuid, stored), old: oldAlreadyStored(dt, skip, uuid, stored) });
+  }
+  cases.push({ name: "10. the lobbying request starts a minute before the frontier, to the second, and keeps a filing sharing its second", checks });
+}
+
+// ── 11. The bills tail's daily look-back ────────────────────────────────────
+{
+  const checks: Check[] = [];
+  for (const [what, iso, stamp, want] of [
+    ["today, before any switch", "2026-11-27T12:00:00Z", null, false],
+    ["the last instant before the switch", "2027-01-02T23:59:59Z", null, false],
+    ["the window's first tick, never stamped", "2027-01-03T06:00:00Z", null, true],
+    ["the same UTC day, stamped at 06:05Z", "2027-01-03T18:00:00Z", "2027-01-03T06:05:00.000Z", false],
+    ["the next UTC day", "2027-01-04T00:00:00Z", "2027-01-03T06:05:00.000Z", true],
+    ["the window's last instant, stamped the day before", "2027-01-23T23:59:59.999Z", "2027-01-22T06:00:00.000Z", true],
+    ["the window closed, stamped the day before", "2027-01-24T00:00:00Z", "2027-01-23T06:00:00.000Z", false],
+  ] as const) {
+    checks.push({ what: `look-back due: ${what} (${iso})`, want, got: billsTailLookBackDue(at(iso), stamp), old: oldLookBackDue(at(iso), stamp) });
+  }
+  cases.push({ name: "11. the bills tail's look-back runs once a UTC day inside the 21 days, never outside them", checks });
+}
+
+// ── 12. The amendments tail ─────────────────────────────────────────────────
+{
+  const T = { congress: 119, session: 2 };
+  const checks: Check[] = [];
+  for (const [iso, want] of [
+    ["2026-11-27T12:00:00Z", null],
+    ["2027-01-02T23:59:59Z", null],
+    ["2027-01-03T00:00:00Z", T],
+    ["2027-01-09T23:59:59.999Z", T],
+    ["2027-01-10T00:00:00Z", null],
+  ] as const) {
+    checks.push({ what: `the amendments tail at ${iso}`, want, got: amendmentsTail(at(iso)), old: oldAmendmentsTail(at(iso)) });
+  }
+  cases.push({ name: "12. the amendments sync keeps the previous Congress's tail for seven days", checks });
 }
 
 // ── Report ──────────────────────────────────────────────────────────────────
