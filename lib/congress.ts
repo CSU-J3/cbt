@@ -118,6 +118,15 @@ export function previousCongressTail(
   return { congress: current - 1, session: 2 };
 }
 
+// HO 840: whether the bills tail's daily look-back is due. Like the current Congress's wide listing (`bills_wide_at`,
+// lib/sync.ts), it runs once a UTC day: due when the tail's own stamp (`bills_tail_wide_at`, written when a look-back
+// reaches the end of the list) is absent or from an earlier UTC day than `now`. Only inside the tail's window, 21
+// days by default, the bills sync's: never before the switch or from 2027-01-24T00:00:00Z.
+export function billsTailLookBackDue(now: Date, stampedAt: string | null, days = 21): boolean {
+  if (previousCongressTail(now, days) === null) return false;
+  return stampedAt === null || stampedAt.slice(0, 10) < now.toISOString().slice(0, 10);
+}
+
 // HO 839 (838-ff-go.md ruling 5): where the bills sync's tail of the previous
 // Congress starts listing, the first time a window opens. That's the frontier as
 // it stood at the switch, or 48 hours before the switch if that's lower, so a

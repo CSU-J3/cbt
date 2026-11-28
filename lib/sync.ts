@@ -27,8 +27,22 @@
 // frontier at the switch or 48 hours before it if that's lower (billsTailStart). It never moves
 // `bills_frontier` or `bills_wide_at`, its entries go through the same drain, and it's bounded by the
 // tick's deadline like the wide listing: what's left waits for the next tick.
+//
+// HO 840: the tail gets the wide listing's daily look-back. Once a UTC day (its own stamp,
+// `bills_tail_wide_at`, billsTailLookBackDue), after the tail's listing completes, a second listing of
+// /bill/{current − 1} from the tail's frontier less 48 hours enqueues every entry it lists, so a 119th update
+// Congress.gov indexes late, after the tail has passed it, is still fetched. It moves no frontier (not
+// `bills_frontier`, `bills_wide_at` or `bills_tail_frontier`), goes through the same drain, is cut by the
+// same deadline, and runs only inside the tail's 21 days.
 import { classifyCluster } from "./cluster-patterns";
-import { billsTailStart, congressTermDates, getCurrentCongress, ordinal, previousCongressTail } from "./congress";
+import {
+  billsTailLookBackDue,
+  billsTailStart,
+  congressTermDates,
+  getCurrentCongress,
+  ordinal,
+  previousCongressTail,
+} from "./congress";
 import { getDb } from "./db";
 import { computeStageWithLaws, stageRank } from "./enums";
 import { fetchError, redactSecrets } from "./redact";
@@ -56,6 +70,8 @@ const WIDE_KEY = "bills_wide_at";
 // HO 839: the previous Congress's tail, its window and its own progress row.
 const TAIL_KEY = "bills_tail_frontier";
 const TAIL_DAYS = 21;
+// HO 840: the tail's daily look-back, its own stamp (the tail's bills_wide_at).
+const TAIL_WIDE_KEY = "bills_tail_wide_at";
 // HO 116: hard wall-clock cap per detail fetch. Cheap insurance — observed
 // p95 was 127ms locally — but mirrors the HO 115 summarize pattern so a
 // future hung Congress.gov call can't burn the cron tick.
@@ -170,6 +186,11 @@ export type BillsTailStats = {
   // This tick wrote the tail's first frontier (billsTailStart).
   initialized: boolean;
   complete: boolean;
+  // HO 840: the daily look-back ran this tick, from where (the tail's frontier less 48 hours), and reached the end
+  // of the list (which writes bills_tail_wide_at). `pages` and `enqueued` count both of the tail's listings.
+  wide: boolean;
+  wideFrom: string | null;
+  wideComplete: boolean;
   pages: number;
   enqueued: number;
   error: string | null;
@@ -716,22 +737,28 @@ async function drain(
 }
 
 // HO 839: the previous Congress's tail, run after the current listing. Its frontier is its own sync_state row,
-// keyed by the tail's congress, so a row left from an earlier switch starts over. It writes only that row.
+// keyed by the tail's congress, so a row left from an earlier switch starts over. It writes only that row, and
+// (HO 840) the look-back's stamp.
 async function runTail(
   db: ReturnType<typeof getDb>,
   apiKey: string,
   tailCongress: number,
   frontierAtTickStart: string,
-  cfg: { overlap: number; deadlineMs?: number; source: QueueSource },
+  cfg: { overlap: number; deadlineMs?: number; source: QueueSource; now: Date; wide?: boolean },
   stats: SyncStats,
 ): Promise<BillsTailStats> {
-  const r = await db.execute({ sql: "SELECT value FROM sync_state WHERE key = ?", args: [TAIL_KEY] });
+  const r = await db.execute({
+    sql: "SELECT key, value FROM sync_state WHERE key IN (?, ?)",
+    args: [TAIL_KEY, TAIL_WIDE_KEY],
+  });
+  const rowOf = (k: string) => r.rows.find((x) => String(x.key) === k)?.value;
   let stored: { congress?: number; frontier?: string } | null = null;
   try {
-    stored = JSON.parse(String(r.rows[0]?.value ?? "null")) as { congress?: number; frontier?: string } | null;
+    stored = JSON.parse(String(rowOf(TAIL_KEY) ?? "null")) as { congress?: number; frontier?: string } | null;
   } catch {
     stored = null;
   }
+  const wideAt = rowOf(TAIL_WIDE_KEY);
   let from: string;
   let initialized = false;
   if (stored && stored.congress === tailCongress && typeof stored.frontier === "string") {
@@ -755,19 +782,43 @@ async function runTail(
     { overlap: cfg.overlap, deadlineMs: cfg.deadlineMs, source: cfg.source, wide: true, congress: tailCongress },
     stats,
   );
-  const error = stats.listError;
-  stats.listError = errorBefore;
   let frontierAfter = from;
   if (complete) {
     frontierAfter = isoSeconds(startedAt - FRONTIER_MARGIN_MS);
     await setSyncState(db, TAIL_KEY, JSON.stringify({ congress: tailCongress, frontier: frontierAfter }));
   }
+  // HO 840: the daily look-back, after a completed tail listing, as the current Congress's wide listing follows its
+  // frontier listing: from the tail's frontier at the tick's start less 48 hours. It moves no frontier, and its
+  // stamp is written only when it reaches the end of the list, so a cut one runs again on the next tick.
+  // `opts.wide` decides it as it decides the wide listing (`npm run sync` passes false without --wide).
+  let wide = false;
+  let wideFrom: string | null = null;
+  let wideComplete = false;
+  if (complete && (cfg.wide ?? billsTailLookBackDue(cfg.now, wideAt == null ? null : String(wideAt), TAIL_DAYS))) {
+    wide = true;
+    wideFrom = isoSeconds(Date.parse(normalizeDateTime(from)) - WIDE_WINDOW_MS);
+    console.log(`tail look-back of the ${ordinal(tailCongress)} since ${wideFrom}: every entry it lists`);
+    wideComplete = await walkList(
+      db,
+      apiKey,
+      wideFrom,
+      { overlap: cfg.overlap, deadlineMs: cfg.deadlineMs, source: cfg.source, wide: true, congress: tailCongress },
+      stats,
+    );
+    if (wideComplete) await setSyncState(db, TAIL_WIDE_KEY, new Date().toISOString());
+  }
+  // A failed tail listing returns false, so the look-back doesn't run: the error is one listing's or the other's.
+  const error = stats.listError;
+  stats.listError = errorBefore;
   return {
     congress: tailCongress,
     from,
     frontierAfter,
     initialized,
     complete,
+    wide,
+    wideFrom,
+    wideComplete,
     pages: stats.pages - pagesBefore,
     enqueued: stats.enqueued - enqueuedBefore,
     error,
@@ -857,7 +908,9 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
     // HO 839: the previous Congress's tail, in its window, after the current listing. Not on an explicit
     // fromDateTime (a run by hand), as the wide listing isn't.
     const tail = explicit ? null : previousCongressTail(now, TAIL_DAYS);
-    if (tail) stats.tail = await runTail(db, apiKey, tail.congress, frontier, { overlap, deadlineMs, source }, stats);
+    if (tail) {
+      stats.tail = await runTail(db, apiKey, tail.congress, frontier, { overlap, deadlineMs, source, now, wide: opts.wide }, stats);
+    }
   }
 
   await drain(db, apiKey, { source, deadlineMs, maxResets: opts.maxResets, order: opts.drainOrder }, stats);
