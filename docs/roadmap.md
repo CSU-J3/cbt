@@ -4150,3 +4150,33 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - one line opened, the amendments tail.
   - Reconcile 286 / 408 / 694 at open, 287 / 408 / 695 at close.
 - **Also notes now run through HO 839.**
+
+**Also (HO 840): the lobbying sync gets past a busy boundary day, the bills tail gets its daily look-back, and the amendments sync gets the previous Congress's tail.** The lobbying request starts a minute before the frontier, to the second, and keeps a filing that shares the frontier's second. The bills tail re-lists 48 hours behind its frontier once a day. The amendments sync lists the previous Congress for 7 days from a per-congress frontier. `check:rollover` grows to twelve cases. Built on `4a5c283`, on `840-review`.
+
+- **HO 839's FF, taken:** `main` went `01e515c..4a5c283` at 3:47:24 PM MST Nov 27, no force. Production record `8120752278`. `ci.yml` `46078743545`, 9 of 9 on the rollover step. `e2e-prod` `46078825782`, 237 of 237, the smoke job 9m16s. `/api/health` 200.
+- **STEP 0 held, claims 1 to 8.** The handoff's `lib/lda-sync.ts` anchors had moved about 22 lines. Then:
+  - (4) 10 of 10 ticks ended in 2026 Q3 after the same ten combos, and the boundary days hold 5,574 stored filings, more than any tick reads (11 to 233 pages). But 2025's combos already cost a page each, not a boundary day;
+  - (5) `filing_dt_posted_after` filters to the second, inclusive, and reads a timestamp without `Z` as Eastern time, so the timestamp route;
+  - (6) the page order is stable, and `ordering` drops a uuid tiebreak silently;
+  - (8) the amendments frontier was the whole table's, so it's per congress now.
+- **Two findings the requests surfaced:**
+  - the API holds two Q3 filings at the frontier's second, 11:23:18, and the store one. The Nov 26 deadline cut the pair, and `dtMs <= skipMs` would have dropped the second for good;
+  - Q3 is one filing short below the frontier (the API's 5,574 from Oct 19 to the store's 5,573), which no forward sync re-lists.
+- **§ 1:**
+  - `ldaPostedAfter`, `ldaAlreadyStored` and the settled-combo skip (`storedSince`, like with like);
+  - the bills tail's look-back (`billsTailLookBackDue`, `bills_tail_wide_at`), moving no frontier;
+  - `amendmentsTail` and the per-congress frontier, the tail its own payload field, stopping at its first failed detail;
+  - `check:rollover` cases 10 to 12, every control firing.
+- **The review:** 4 reviewers, each followed by a refuter: 9 findings claimed, 3 confirmed, 6 refuted. Two in the amendments tail were fixed by amending commit 3 and re-picking commit 4. The tail now stops at its first failed detail, since past it a later item lifted the 119th's frontier over the failed one and `--repair` reads only the current Congress. And a write that throws no longer counts as upserted. The third, the amendments route's stale header comment, is outside Leg E's files, so it's flagged.
+- **The legs:**
+  - A: 12 of 12. B: 0 refused; on prod, Q3's stored filing at 11:23:18 is the first of the API's pair, and `julianday()` matches an instant compare.
+  - C (claim 4's boundary days recorded from the store, a stub, the 280 s deadline): the old code's two ticks read 219 pages and upsert 0, as prod did. The new code's first upserts 5,208 and stores the tie, and its second finishes Q3, less the hole, and reaches Q4 to 4A. The ten settled combos cost a request each. The skip passes a caught-up 30-filing combo after one page and reads on in one a filing short.
+  - D: the look-back lists after the tail once a UTC day, runs again after a cut, and stops with the window; the amendments tail lists after the current Congress from its own frontier. A failed detail stops the tail, which lists it again next run, and a refused write counts 0; the pre-amend code fails all four of those checks. Neither tail moves a current frontier, and the base reads neither.
+  - E: the five files the handoff names.
+- **Flagged in the paste:** the tie-aware dedup (a departure from *the dedup stays*); case 10's `Z`, which the handoff's literal lacked; the close criterion can't reach the API's count (the hole); the skip saves nothing today; the route's comment; the moved anchors.
+- **The docs:**
+  - one line opened, the lobbying sync's boundary days, naming the timestamp route;
+  - the amendments tail line struck (*built at HO 840, 7 days, proven by case 12*) and moved to the archive;
+  - the day-of list gains the amendments tail's payload through Jan 9.
+  - Reconcile 287 / 408 / 695 at open, 287 / 409 / 696 at close.
+- **Also notes now run through HO 840.**
